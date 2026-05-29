@@ -1,5 +1,9 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import nodemailer from 'nodemailer'
+import { Client as NotionClient } from '@notionhq/client'
+
+// Notion Client database ID
+const CLIENT_DB = '334bc09b-53ce-80a9-82ec-000b8cffc130'
 
 const SERVICES = [
   { name: 'Clean + Polish',                price: '$8',  note: 'Surface clean, holo polish' },
@@ -38,7 +42,13 @@ export default async function handler(req, res) {
 
   try {
     const pdfBytes = await buildPDF({ clientName, notes, signedAt, sigDataUrl })
-    await sendEmail({ clientName, notes, signedAt, pdfBytes })
+
+    // Run email + Notion sync in parallel
+    await Promise.allSettled([
+      sendEmail({ clientName, notes, signedAt, pdfBytes }),
+      syncToNotion({ clientName, notes, signedAt }),
+    ])
+
     return res.status(200).json({ ok: true })
   } catch (err) {
     console.error('[send-waiver]', err)
@@ -231,5 +241,37 @@ async function sendEmail({ clientName, notes, signedAt, pdfBytes }) {
       content:     Buffer.from(pdfBytes),
       contentType: 'application/pdf',
     }],
+  })
+}
+
+// ── Notion sync ───────────────────────────────────────────────────────────────
+async function syncToNotion({ clientName, notes, signedAt }) {
+  if (!process.env.NOTION_TOKEN) return // skip if not configured
+
+  const notion = new NotionClient({ auth: process.env.NOTION_TOKEN })
+
+  const intakeDate = new Date(signedAt).toISOString().split('T')[0]
+
+  await notion.pages.create({
+    parent: { database_id: CLIENT_DB },
+    properties: {
+      'Name': {
+        title: [{ text: { content: clientName } }],
+      },
+      'Date Intake': {
+        date: { start: intakeDate },
+      },
+      'Risk Agreement': {
+        checkbox: true,
+      },
+      'Intake Complete': {
+        checkbox: false,
+      },
+      ...(notes && {
+        'Contact Info': {
+          rich_text: [{ text: { content: notes } }],
+        },
+      }),
+    },
   })
 }
