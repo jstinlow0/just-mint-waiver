@@ -8,10 +8,10 @@ const C = {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 const SERVICES = [
-  { name: 'Clean + Polish',             price: '$8'  },
+  { name: 'Clean + Polish',                price: '$8'  },
   { name: 'Edge & Corner Lift Correction', price: '$30', note: 'includes Clean + Polish' },
-  { name: 'Dent Correction',            price: '$40', note: 'includes Clean + Polish' },
-  { name: 'Crease Correction',          price: '$50', note: 'includes Clean + Polish' },
+  { name: 'Dent Correction',              price: '$40', note: 'includes Clean + Polish' },
+  { name: 'Crease Correction',            price: '$50', note: 'includes Clean + Polish' },
 ];
 
 const SECTIONS = [
@@ -113,133 +113,12 @@ Personal information (name, contact details, payment info) is retained for 1 yea
 If any part of this Agreement is found to be unenforceable, the remaining provisions continue in full effect.`],
 ];
 
-// ── Build receipt image on canvas ────────────────────────────────────────────
-async function buildReceiptImage(record) {
-  const signed = new Date(record.signedAt).toLocaleString('en-US', {
-    year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit',
-  });
-
-  // Load signature image element first (needed for drawImage)
-  let sigEl = null;
-  if (record.sig) {
-    sigEl = await new Promise(res => {
-      const img = new Image();
-      img.onload = () => res(img);
-      img.onerror = () => res(null);
-      img.src = record.sig;
-    });
-  }
-
-  const W = 800, P = 48, DPR = 2;
-  const notesH  = record.notes ? 40 : 0;
-  const totalH  = 480 + notesH;
-
-  const canvas  = document.createElement('canvas');
-  canvas.width  = W * DPR;
-  canvas.height = totalH * DPR;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(DPR, DPR);
-
-  // ── background ──
-  ctx.fillStyle = '#F4FBF6';
-  ctx.fillRect(0, 0, W, totalH);
-
-  // ── top green bar ──
-  const g = ctx.createLinearGradient(0,0,W,0);
-  g.addColorStop(0,'#008922'); g.addColorStop(1,'#206100');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, 6);
-
-  let y = 42;
-
-  // ── title ──
-  ctx.fillStyle = '#206100';
-  ctx.font = `bold 28px Arial, sans-serif`;
-  ctx.fillText('Just Mint Card Care', P, y);
-  y += 32;
-  ctx.fillStyle = '#4a7a58';
-  ctx.font = `12px Arial, sans-serif`;
-  ctx.fillText('SIGNED SERVICE AGREEMENT & LIABILITY WAIVER', P, y);
-  y += 20;
-
-  // ── divider ──
-  ctx.strokeStyle = '#b8dfc4'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(P, y); ctx.lineTo(W-P, y); ctx.stroke();
-  y += 22;
-
-  // ── details box ──
-  const boxH = 50 + 38 + 38 + notesH + 20;
-  ctx.fillStyle = '#fff';
-  ctx.strokeStyle = '#b8dfc4'; ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.roundRect(P, y, W-P*2, boxH, 8);
-  ctx.fill(); ctx.stroke();
-
-  const bx = P+20; let by = y+26;
-  const drawRow = (label, value) => {
-    ctx.fillStyle = '#4a7a58'; ctx.font = '12px Arial';
-    ctx.fillText(label, bx, by);
-    ctx.fillStyle = '#0d2615'; ctx.font = 'bold 16px Arial';
-    ctx.fillText(value, bx+90, by);
-    by += 38;
-  };
-  drawRow('Client', record.name);
-  drawRow('Signed', signed);
-  if (record.notes) drawRow('Notes', record.notes.substring(0,60) + (record.notes.length>60?'…':''));
-  y += boxH + 18;
-
-  // ── signature box ──
-  const sigBoxH = 150;
-  ctx.fillStyle = '#fff';
-  ctx.strokeStyle = '#b8dfc4'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.roundRect(P, y, W-P*2, sigBoxH, 8);
-  ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#4a7a58'; ctx.font = 'bold 10px Arial';
-  ctx.fillText('SIGNATURE', P+20, y+22);
-  if (sigEl) {
-    ctx.drawImage(sigEl, P+20, y+32, 280, 100);
-  } else {
-    ctx.fillStyle = '#b8dfc4'; ctx.font = '14px Arial';
-    ctx.fillText('(no signature captured)', P+20, y+85);
-  }
-  y += sigBoxH + 18;
-
-  // ── services ──
-  const svcH = 28 + SERVICES.length * 36 + 16;
-  ctx.fillStyle = '#fff';
-  ctx.strokeStyle = '#b8dfc4'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.roundRect(P, y, W-P*2, svcH, 8);
-  ctx.fill(); ctx.stroke();
-  ctx.fillStyle = '#4a7a58'; ctx.font = 'bold 10px Arial';
-  ctx.fillText('SERVICE RATES — PER CARD', P+20, y+20);
-  let sy = y + 36;
-  SERVICES.forEach(s => {
-    ctx.fillStyle = '#0d2615'; ctx.font = '14px Arial';
-    ctx.fillText(s.name + (s.note ? ` (${s.note})` : ''), P+20, sy);
-    ctx.fillStyle = '#008922'; ctx.font = 'bold 15px Arial';
-    ctx.textAlign = 'right';
-    ctx.fillText(s.price, W-P-20, sy);
-    ctx.textAlign = 'left';
-    sy += 36;
-  });
-  y += svcH + 18;
-
-  // ── footer ──
-  ctx.fillStyle = '#4a7a58'; ctx.font = '12px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText('Just Mint Card Care  •  justminttcg@gmail.com', W/2, y+18);
-  ctx.fillText('Client has read and agreed to all terms of the Just Mint Card Care Service Agreement', W/2, y+36);
-  ctx.textAlign = 'left';
-
-  return canvas.toDataURL('image/png');
-}
-
 // ── Waiver overlay (fullscreen in-artifact, calls window.print) ───────────────
 function WaiverOverlay({ record, onClose }) {
   const signed = new Date(record.signedAt).toLocaleString('en-US', {
     year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit',
   });
- 
+
   useEffect(() => {
     // Inject print CSS: hide everything except this overlay when printing
     const style = document.createElement('style');
@@ -248,7 +127,7 @@ function WaiverOverlay({ record, onClose }) {
     document.head.appendChild(style);
     return () => document.getElementById('__waiverPrint')?.remove();
   }, []);
- 
+
   const S = {
     overlay:  { position:'fixed', inset:0, zIndex:9999, background:'#fff', overflowY:'auto', fontFamily:"Georgia,serif", color:'#0d2615' },
     inner:    { maxWidth:640, margin:'0 auto', padding:'20px 16px 48px' },
@@ -263,7 +142,7 @@ function WaiverOverlay({ record, onClose }) {
     printBtn: { width:'100%', padding:14, background:'#008922', color:'#fff', border:'none', borderRadius:8, fontSize:15, fontWeight:600, cursor:'pointer', marginBottom:16, fontFamily:'Georgia,serif' },
     closeBtn: { width:'100%', padding:12, background:'none', border:'1px solid #b8dfc4', borderRadius:8, fontSize:14, cursor:'pointer', color:'#4a7a58', fontFamily:'Georgia,serif' },
   };
- 
+
   return (
     <div id="waiver-overlay" style={S.overlay}>
       <div style={S.inner}>
@@ -271,11 +150,11 @@ function WaiverOverlay({ record, onClose }) {
           <button onClick={() => window.print()} style={S.printBtn}>📄 Save as PDF / Print</button>
           <button onClick={onClose} style={S.closeBtn}>✕ Close</button>
         </div>
- 
+
         <div style={S.bar} />
         <div style={S.h1}>Just Mint Card Care</div>
         <div style={S.sub}>Signed Service Agreement &amp; Liability Waiver</div>
- 
+
         <div style={S.card}>
           <div style={S.lbl}>Submission Details</div>
           <div style={{...S.row}}><span style={{color:'#4a7a58'}}>Client</span><strong>{record.name}</strong></div>
@@ -288,7 +167,7 @@ function WaiverOverlay({ record, onClose }) {
             </div>
           )}
         </div>
- 
+
         <div style={S.card}>
           <div style={S.lbl}>Service Rates — Per Card</div>
           {SERVICES.map((s,i) => (
@@ -298,7 +177,7 @@ function WaiverOverlay({ record, onClose }) {
             </div>
           ))}
         </div>
- 
+
         <div style={S.card}>
           <div style={S.lbl}>Full Agreement</div>
           {SECTIONS.map(([title, body], i) => (
@@ -308,11 +187,11 @@ function WaiverOverlay({ record, onClose }) {
             </div>
           ))}
         </div>
- 
+
         <div style={{textAlign:'center', fontSize:12, color:'#4a7a58', marginTop:20, lineHeight:1.8}}>
           Just Mint Card Care &nbsp;•&nbsp; justminttcg@gmail.com
         </div>
- 
+
         <div className="no-print" style={{marginTop:20}}>
           <button onClick={onClose} style={S.closeBtn}>✕ Close and go back</button>
         </div>
@@ -320,7 +199,6 @@ function WaiverOverlay({ record, onClose }) {
     </div>
   );
 }
-
 
 // ── Signature canvas ──────────────────────────────────────────────────────────
 function SigPad({ onChange }) {
