@@ -8,10 +8,10 @@ const C = {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 const SERVICES = [
-  { name: 'Clean + Polish',                price: '$8'  },
+  { name: 'Clean + Polish',             price: '$8'  },
   { name: 'Edge & Corner Lift Correction', price: '$30', note: 'includes Clean + Polish' },
-  { name: 'Dent Correction',              price: '$40', note: 'includes Clean + Polish' },
-  { name: 'Crease Correction',            price: '$50', note: 'includes Clean + Polish' },
+  { name: 'Dent Correction',            price: '$40', note: 'includes Clean + Polish' },
+  { name: 'Crease Correction',          price: '$50', note: 'includes Clean + Polish' },
 ];
 
 const SECTIONS = [
@@ -113,20 +113,144 @@ Personal information (name, contact details, payment info) is retained for 1 yea
 If any part of this Agreement is found to be unenforceable, the remaining provisions continue in full effect.`],
 ];
 
-// ── Waiver overlay (fullscreen in-artifact, calls window.print) ───────────────
-function WaiverOverlay({ record, onClose }) {
+// ── Build receipt image on canvas ────────────────────────────────────────────
+async function buildReceiptImage(record) {
   const signed = new Date(record.signedAt).toLocaleString('en-US', {
     year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit',
   });
 
-  useEffect(() => {
-    // Inject print CSS: hide everything except this overlay when printing
-    const style = document.createElement('style');
-    style.id = '__waiverPrint';
-    style.textContent = `@media print { body > *:not(#waiver-overlay) { display:none!important; } #waiver-overlay { position:static!important; overflow:visible!important; } .no-print { display:none!important; } }`;
-    document.head.appendChild(style);
-    return () => document.getElementById('__waiverPrint')?.remove();
-  }, []);
+  // Load signature image element first (needed for drawImage)
+  let sigEl = null;
+  if (record.sig) {
+    sigEl = await new Promise(res => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.onerror = () => res(null);
+      img.src = record.sig;
+    });
+  }
+
+  const W = 800, P = 48, DPR = 2;
+  const notesH  = record.notes ? 40 : 0;
+  const totalH  = 480 + notesH;
+
+  const canvas  = document.createElement('canvas');
+  canvas.width  = W * DPR;
+  canvas.height = totalH * DPR;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(DPR, DPR);
+
+  // ── background ──
+  ctx.fillStyle = '#F4FBF6';
+  ctx.fillRect(0, 0, W, totalH);
+
+  // ── top green bar ──
+  const g = ctx.createLinearGradient(0,0,W,0);
+  g.addColorStop(0,'#008922'); g.addColorStop(1,'#206100');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, 6);
+
+  let y = 42;
+
+  // ── title ──
+  ctx.fillStyle = '#206100';
+  ctx.font = `bold 28px Arial, sans-serif`;
+  ctx.fillText('Just Mint Card Care', P, y);
+  y += 32;
+  ctx.fillStyle = '#4a7a58';
+  ctx.font = `12px Arial, sans-serif`;
+  ctx.fillText('SIGNED SERVICE AGREEMENT & LIABILITY WAIVER', P, y);
+  y += 20;
+
+  // ── divider ──
+  ctx.strokeStyle = '#b8dfc4'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(P, y); ctx.lineTo(W-P, y); ctx.stroke();
+  y += 22;
+
+  // ── details box ──
+  const boxH = 50 + 38 + 38 + notesH + 20;
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#b8dfc4'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(P, y, W-P*2, boxH, 8);
+  ctx.fill(); ctx.stroke();
+
+  const bx = P+20; let by = y+26;
+  const drawRow = (label, value) => {
+    ctx.fillStyle = '#4a7a58'; ctx.font = '12px Arial';
+    ctx.fillText(label, bx, by);
+    ctx.fillStyle = '#0d2615'; ctx.font = 'bold 16px Arial';
+    ctx.fillText(value, bx+90, by);
+    by += 38;
+  };
+  drawRow('Client', record.name);
+  drawRow('Signed', signed);
+  if (record.notes) drawRow('Notes', record.notes.substring(0,60) + (record.notes.length>60?'…':''));
+  y += boxH + 18;
+
+  // ── signature box ──
+  const sigBoxH = 150;
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#b8dfc4'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(P, y, W-P*2, sigBoxH, 8);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#4a7a58'; ctx.font = 'bold 10px Arial';
+  ctx.fillText('SIGNATURE', P+20, y+22);
+  if (sigEl) {
+    ctx.drawImage(sigEl, P+20, y+32, 280, 100);
+  } else {
+    ctx.fillStyle = '#b8dfc4'; ctx.font = '14px Arial';
+    ctx.fillText('(no signature captured)', P+20, y+85);
+  }
+  y += sigBoxH + 18;
+
+  // ── services ──
+  const svcH = 28 + SERVICES.length * 36 + 16;
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#b8dfc4'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(P, y, W-P*2, svcH, 8);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#4a7a58'; ctx.font = 'bold 10px Arial';
+  ctx.fillText('SERVICE RATES — PER CARD', P+20, y+20);
+  let sy = y + 36;
+  SERVICES.forEach(s => {
+    ctx.fillStyle = '#0d2615'; ctx.font = '14px Arial';
+    ctx.fillText(s.name + (s.note ? ` (${s.note})` : ''), P+20, sy);
+    ctx.fillStyle = '#008922'; ctx.font = 'bold 15px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText(s.price, W-P-20, sy);
+    ctx.textAlign = 'left';
+    sy += 36;
+  });
+  y += svcH + 18;
+
+  // ── footer ──
+  ctx.fillStyle = '#4a7a58'; ctx.font = '12px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('Just Mint Card Care  •  justminttcg@gmail.com', W/2, y+18);
+  ctx.fillText('Client has read and agreed to all terms of the Just Mint Card Care Service Agreement', W/2, y+36);
+  ctx.textAlign = 'left';
+
+  return canvas.toDataURL('image/png');
+}
+
+// ── Waiver overlay ────────────────────────────────────────────────────────────
+function WaiverOverlay({ record, onClose }) {
+  const [imgUrl,   setImgUrl]   = useState(null);
+  const [building, setBuilding] = useState(false);
+
+  async function handleSaveImage() {
+    setBuilding(true);
+    try {
+      const url = await buildReceiptImage(record);
+      setImgUrl(url);
+    } catch(e) { alert('Could not generate image: ' + e.message); }
+    setBuilding(false);
+  }
+
+  const signed = new Date(record.signedAt).toLocaleString('en-US', {
+    year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit',
+  });
 
   const S = {
     overlay:  { position:'fixed', inset:0, zIndex:9999, background:'#fff', overflowY:'auto', fontFamily:"Georgia,serif", color:'#0d2615' },
@@ -139,17 +263,35 @@ function WaiverOverlay({ record, onClose }) {
     row:      { display:'flex', justifyContent:'space-between', fontSize:14, padding:'6px 0', borderBottom:'.5px solid #b8dfc4' },
     sTitle:   { fontSize:13, fontWeight:700, color:'#206100', margin:'14px 0 4px' },
     sBody:    { fontSize:13, lineHeight:1.75, whiteSpace:'pre-wrap', margin:0, color:'#0d2615' },
-    printBtn: { width:'100%', padding:14, background:'#008922', color:'#fff', border:'none', borderRadius:8, fontSize:15, fontWeight:600, cursor:'pointer', marginBottom:16, fontFamily:'Georgia,serif' },
-    closeBtn: { width:'100%', padding:12, background:'none', border:'1px solid #b8dfc4', borderRadius:8, fontSize:14, cursor:'pointer', color:'#4a7a58', fontFamily:'Georgia,serif' },
+    greenBtn: { width:'100%', padding:14, background:'#008922', color:'#fff', border:'none', borderRadius:8, fontSize:15, fontWeight:600, cursor:'pointer', marginBottom:10, fontFamily:'Georgia,serif' },
+    outBtn:   { width:'100%', padding:12, background:'none', border:'1px solid #b8dfc4', borderRadius:8, fontSize:14, cursor:'pointer', color:'#4a7a58', fontFamily:'Georgia,serif', marginBottom:10 },
   };
+
+  // Image preview screen
+  if (imgUrl) return (
+    <div style={S.overlay}>
+      <div style={S.inner}>
+        <div style={{ background:'#e6f5eb', border:'1px solid #b8dfc4', borderRadius:8, padding:14, marginBottom:16, fontSize:13, color:'#4a7a58', lineHeight:1.7 }}>
+          <strong style={{color:'#206100'}}>📱 How to save:</strong><br/>
+          <strong>iOS:</strong> Long-press the image → "Add to Photos" or "Save Image"<br/>
+          <strong>Android:</strong> Long-press the image → "Download image" or "Save image"
+        </div>
+        <img src={imgUrl} alt="Signed waiver receipt"
+          style={{ width:'100%', borderRadius:8, border:'1px solid #b8dfc4', display:'block', marginBottom:14 }} />
+        <button onClick={() => setImgUrl(null)} style={S.outBtn}>← Back</button>
+        <button onClick={onClose} style={S.outBtn}>✕ Close</button>
+      </div>
+    </div>
+  );
 
   return (
     <div id="waiver-overlay" style={S.overlay}>
       <div style={S.inner}>
-        <div className="no-print" style={{ display:'flex', gap:10, marginBottom:16 }}>
-          <button onClick={() => window.print()} style={S.printBtn}>📄 Save as PDF / Print</button>
-          <button onClick={onClose} style={S.closeBtn}>✕ Close</button>
-        </div>
+        <button onClick={handleSaveImage} disabled={building} style={{...S.greenBtn, opacity: building?0.7:1}}>
+          {building ? 'Building image…' : '📷 Save as Image (tap to save to photos)'}
+        </button>
+        <button onClick={() => window.print()} style={{...S.greenBtn, background:'#206100'}}>📄 Print / Save as PDF</button>
+        <button onClick={onClose} style={S.outBtn}>✕ Close</button>
 
         <div style={S.bar} />
         <div style={S.h1}>Just Mint Card Care</div>
@@ -192,8 +334,8 @@ function WaiverOverlay({ record, onClose }) {
           Just Mint Card Care &nbsp;•&nbsp; justminttcg@gmail.com
         </div>
 
-        <div className="no-print" style={{marginTop:20}}>
-          <button onClick={onClose} style={S.closeBtn}>✕ Close and go back</button>
+        <div style={{marginTop:20}}>
+          <button onClick={onClose} style={S.outBtn}>✕ Close and go back</button>
         </div>
       </div>
     </div>
