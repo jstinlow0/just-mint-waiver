@@ -343,7 +343,8 @@ function Sign({ onBack, onDone }) {
 }
 
 // ── Step 3: Done ──────────────────────────────────────────────────────────────
-function Done({ record }) {
+// ── Step 3: Done ──────────────────────────────────────────────────────────────
+function Done({ record, onReset }) {
   const signed = new Date(record.signedAt).toLocaleString('en-US', {
     year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
   })
@@ -382,6 +383,13 @@ function Done({ record }) {
         )}
       </Box>
 
+      <button onClick={onReset} type="button"
+        style={{ width: '100%', padding: 15, fontSize: 15, fontWeight: 600, borderRadius: 10,
+          border: `1.5px solid ${C.green}`, background: 'transparent', color: C.green,
+          cursor: 'pointer', marginBottom: 14 }}>
+        Submit Another Waiver
+      </button>
+
       <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.8 }}>
         Just Mint Card Care will reach out when your order is ready.<br />
         Questions? <a href="mailto:justminttcg@gmail.com" style={{ color: C.green }}>justminttcg@gmail.com</a>
@@ -412,13 +420,39 @@ class Boundary extends Component {
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 function Main() {
-  const [step,   setStep]   = useState(1)
-  const [record, setRecord] = useState(null)
+  const [step, setStep] = useState(() => {
+    try { return parseInt(localStorage.getItem('jmcc_step') || '1', 10) } catch { return 1 }
+  })
+  const [record, setRecord] = useState(() => {
+    try {
+      const saved = localStorage.getItem('jmcc_record')
+      return saved ? JSON.parse(saved) : null
+    } catch { return null }
+  })
+
+  function goToStep(n, rec = null) {
+    setStep(n)
+    try { localStorage.setItem('jmcc_step', String(n)) } catch {}
+    if (rec) {
+      setRecord(rec)
+      try { localStorage.setItem('jmcc_record', JSON.stringify(rec)) } catch {}
+    }
+  }
+
+  function reset() {
+    setStep(1)
+    setRecord(null)
+    try {
+      localStorage.removeItem('jmcc_step')
+      localStorage.removeItem('jmcc_record')
+    } catch {}
+  }
+
   return (
     <Wrap step={step}>
-      {step === 1 && <Review onNext={() => setStep(2)} />}
-      {step === 2 && <Sign   onBack={() => setStep(1)} onDone={r => { setRecord(r); setStep(3) }} />}
-      {step === 3 && <Done   record={record} />}
+      {step === 1 && <Review onNext={() => goToStep(2)} />}
+      {step === 2 && <Sign   onBack={() => goToStep(1)} onDone={r => goToStep(3, r)} />}
+      {step === 3 && record && <Done record={record} onReset={reset} />}
     </Wrap>
   )
 }
