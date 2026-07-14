@@ -1,532 +1,1075 @@
-import { useState, useRef, useEffect, Component } from 'react'
+import { useState, useEffect, useRef } from "react";
 
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+// Deployed on Vercel with the api/ folder in the same project, so all sync
+// calls hit same-origin relative URLs (no ngrok, no laptop required).
+// Set NOTION_SYNC to false to run in localStorage-only mode.
+const NOTION_SYNC = true;
+const NOTION_PROXY_URL = ""; // empty = same origin
+
+// ─── Brand Palette ───────────────────────────────────────────────────────────
 const C = {
-  green: '#008922', dark: '#206100', bg: '#F4FBF6',
-  white: '#ffffff', border: '#b8dfc4', text: '#0d2615', muted: '#4a7a58',
-}
+  bg:       '#F4FBF6',
+  white:    '#ffffff',
+  alt:      '#eaf7ef',
+  main:     '#008922',
+  secondary:'#206100',
+  border:   '#b8dfc4',
+  text:     '#0d2615',
+  muted:    '#3a6647',
+  light:    '#7aaa83',
+  danger:   '#b91c1c',
+};
 
+// ─── Static Data ─────────────────────────────────────────────────────────────
+// Service IDs match Notion "Service Type" select options exactly
 const SERVICES = [
-  { name: 'Clean + Polish',                price: '$8'  },
-  { name: 'Edge & Corner Lift Correction', price: '$30', note: 'includes Clean + Polish' },
-  { name: 'Dent Correction',               price: '$40', note: 'includes Clean + Polish' },
-  { name: 'Crease Correction',             price: '$50', note: 'includes Clean + Polish' },
-]
-
-const SECTIONS = [
-  ['Preamble',
-   `This Service Agreement (the "Agreement") is entered into between Just Mint Card Care (the "Service Provider") and the Customer identified in the Submission Details of this Agreement (the "Customer"), effective as of the date the Customer accepts these terms as described in Section 18.`],
-
-  ['1. Services and Scope',
-   `The Service Provider agrees to perform the repair and restoration services described in the Quote Dated ___ (the "Services") on the trading card(s) identified therein (the "Card(s)").`],
-
-  ['2. Acknowledgment of Risk',
-   `The Customer acknowledges and understands that card repair and restoration involve specialized techniques and processes that carry inherent risks, including but not limited to:
-
-- Minor alterations in texture, gloss, or coloration
-- Changes in surface integrity, including additional whitening or increased visibility of existing defects
-- Unforeseen reactions to materials, treatments, heat, pressure, hydration, cleaning processes, or environmental factors
-- The possibility that certain defects cannot be fully repaired and may remain visible
-- The possibility that the Card(s) may be left in a condition equal to or worse than their condition on arrival
-
-The Customer understands and agrees that while the Service Provider will exercise reasonable care and professional judgment, no specific outcome is guaranteed, and some changes may be permanent or irreversible.`],
-
-  ['3. Assumption of Risk and Limitation of Liability',
-   `The Customer knowingly and voluntarily assumes all risks associated with the repair and restoration process.
-
-To the fullest extent permitted by applicable law, the Service Provider shall not be liable for any actual or perceived loss in value, condition change, or damage arising during or after the restoration process, including but not limited to:
-
-- Fading, color shifts, whitening, gloss variation, or surface changes
-- Creases, dents, impressions, or imperfections that may not be fully removable or that may become more apparent
-- Any impact on the Card's eligibility for grading, authentication, encapsulation, or resale
-
-Liability Cap. To the fullest extent permitted by applicable law, the Service Provider's total aggregate liability arising out of or relating to this Agreement shall not exceed the total fees paid by the Customer for the Services.
-
-Nothing in this Agreement limits liability that cannot be limited under applicable law, including liability for gross negligence, willful misconduct, or fraud.`],
-
-  ['4. No Guarantee of Grading or Value',
-   `The Service Provider makes no representations or warranties regarding:
-
-- The outcome of grading or authentication by third-party companies, including but not limited to PSA, Beckett (BGS), CGC, SGC, or similar entities
-- Whether a Card will or will not be flagged as altered, restored, or otherwise ineligible for numeric grading
-- The market value, resale value, or collectability of any Card following restoration
-
-All grading determinations and valuations are made solely by independent third parties and are entirely outside the Service Provider's control.`],
-
-  ['5. Custody of Property',
-   `The Service Provider will exercise reasonable care in safeguarding the Customer's Card(s) while they are in the Service Provider's possession. However, the Customer acknowledges and agrees that the Service Provider is not an insurer of the Card(s).
-
-Except to the extent caused by the Service Provider's gross negligence, willful misconduct, or fraud, the Service Provider shall not be liable for any loss, theft, burglary, fire, vandalism, natural disaster, or other event beyond the Service Provider's reasonable control while the Card(s) are in the Service Provider's care, custody, or control.
-
-The Customer acknowledges that collectible trading cards may possess substantial monetary or sentimental value, and assumes the risk of loss arising from such events beyond the Service Provider's reasonable control. The Customer is encouraged to maintain or obtain appropriate insurance coverage for valuable Card(s).`],
-
-  ['6. Pre-Existing Conditions and Hidden Defects',
-   `The Customer acknowledges that collectible trading cards may contain pre-existing damage, hidden defects, prior restoration, manufacturing irregularities, contamination, or other conditions that are not visible or reasonably discoverable before restoration begins.
-
-The Customer understands and agrees that such conditions may affect the restoration process or become apparent only after treatment has commenced. The Service Provider shall not be responsible for adverse outcomes resulting from pre-existing or concealed conditions that could not reasonably have been identified prior to performing the authorized Services.`],
-
-  ['7. Authorization for Restoration Methods',
-   `The Customer authorizes the Service Provider to perform the Services using the Service Provider's professional judgment, experience, and customary restoration techniques, including the selection of materials, tools, processes, heat, pressure, hydration, cleaning, or other restoration methods the Service Provider reasonably determines are appropriate.
-
-The Customer acknowledges that individual cards may respond differently to restoration techniques, and that the Service Provider may modify or discontinue a treatment if, in the Service Provider's professional judgment, doing so is appropriate to help preserve the condition of the Card.
-
-If the Service Provider determines that a material change in the scope of the Services is necessary, or wishes to perform services substantially different from those originally authorized, the Service Provider will obtain the Customer's written approval before proceeding — unless immediate action is reasonably necessary to prevent further damage to the Card.`],
-
-  ['8. Payment, Possession, and Unclaimed Property (Minnesota — No Address Collection)',
-   `Payment. Payment for all Services is due in full within fourteen (14) calendar days of the Customer being notified that the Services are complete.
-
-Possession Pending Payment. The Service Provider shall retain possession of the Card(s) until payment is received in full. The Customer acknowledges the Service Provider's right to do so, and the Service Provider may exercise any rights and remedies available under applicable law if payment is not timely received.
-
-No Lien Sale or Disposal Rights. The Customer understands and agrees that, under Minnesota law, the Service Provider does not have authority to sell, auction, transfer, or dispose of the Card(s) to satisfy unpaid fees. Minnesota's artisan‑lien and repair‑lien statutes do not apply to trading cards or other collectibles. Nothing in this Agreement shall be interpreted as granting the Service Provider ownership or disposal rights over the Card(s).
-
-No Physical Address Collected. The Customer acknowledges that the Service Provider does not collect physical mailing addresses. All notices, including retrieval notices, will be sent exclusively by email to the Customer's provided email address.
-
-Unclaimed Property, Long‑Term Retention, and Storage Fees (Minnesota‑Compliant)
-
-If the Customer fails to pay or retrieve the Card(s) within ninety (90) days after the completion notice is sent by email, the Card(s) will be placed into secure storage. The following storage‑fee schedule will apply:
-
-Base Storage Period (Day 91–Day 180)
-- $15 per month — Covers secure storage, climate control, and continued safekeeping.
-
-Extended Storage Period (Day 181–Day 365)
-- $25 per month — Reflects increased long‑term storage burden and administrative tracking.
-
-Long‑Term Storage (Beyond 365 Days)
-- $35 per month — Applies until the Customer retrieves the Card(s). The Service Provider may send periodic email reminders requesting retrieval.
-
-Billing Method
-- Storage fees accrue monthly.
-- Fees must be paid in full before the Card(s) are released.
-- Partial months are prorated.
-
-Notice Method. Because the Service Provider does not collect physical mailing addresses, all notices — including the 90‑day retrieval notice — will be sent exclusively by email to the Customer's provided email address.
-
-No Abandonment or Transfer to the State. The Customer acknowledges that Minnesota's unclaimed‑property statutes apply only to intangible property (e.g., money, credits). Physical items such as trading cards cannot be transferred to the State of Minnesota as unclaimed property and cannot be treated as abandoned under Minnesota Statutes Chapter 345.
-
-Continued Custody. The Card(s) will remain in the Service Provider's custody until retrieved by the Customer. The Customer remains responsible for all outstanding fees, including storage fees, and for arranging prompt pickup.
-
-Long‑Term Non‑Retrieval. If the Customer fails to retrieve the Card(s) for an extended period (e.g., twelve months or more), the Service Provider may request updated instructions via email. However, unless Minnesota law changes or a court order is obtained, the Service Provider may not sell, dispose of, or claim ownership of the Card(s).`],
-
-  ['9. Cancellation and Refunds',
-   `The Customer may cancel the Services at any time before work begins by written notice, and the Card(s) will be returned.
-
-Once work has commenced, no refunds will be issued for services already performed. The Service Provider may cancel and return the Card(s) at any time for any reason, refunding any unearned fees.
-
-If a card cannot be serviced for any reason on the Service Provider's end (e.g., the card is determined to be counterfeit, or the Service Provider cannot safely complete the work), the service fee for that card will be refunded in full.
-
-If the agreed scope changes due to hidden damage and no revised agreement is reached, the portion of work not performed will be refunded.`],
-
-  ['10. Release of Claims',
-   `By submitting Card(s) for repair or restoration, the Customer releases and discharges the Service Provider from claims arising out of or related to the inherent risks of authorized restoration services, except to the extent caused by the Service Provider's gross negligence, willful misconduct, or fraud.`],
-
-  ['11. Customer Ownership, Authority, and Disclosure Obligations',
-   `Ownership. The Customer represents and warrants that they are the lawful owner of the Card(s) submitted, or that they have full legal authority from the owner to authorize the requested Services. The Service Provider shall not be responsible for disputes regarding ownership or authorization of submitted Card(s).
-
-Disclosure. The Customer acknowledges that the Card(s) will have been restored, and agrees that any subsequent sale, trade, consignment, or submission for grading of the Card(s) is the Customer's sole responsibility to disclose accurately in accordance with applicable law and the policies of any third-party grading or authentication service.
-
-The Service Provider does not authorize, and expressly disclaims any participation in, the misrepresentation of restored Card(s) as unrestored. The Customer agrees to indemnify and hold harmless the Service Provider from any claim arising out of the Customer's failure to disclose restoration.`],
-
-  ['12. Good-Faith Customer Care',
-   `While this Agreement limits liability, Just Mint Card Care values transparency and customer satisfaction. Any concerns should be communicated promptly to justminttcg@gmail.com, and the Service Provider may, at its sole discretion, elect to address issues as a customer service courtesy. Nothing in this Agreement shall be interpreted as an obligation to provide refunds, replacements, or compensation.`],
-
-  ['13. Photography and Documentation',
-   `The Service Provider may photograph or record the Card(s) before, during, and after the Services for documentation, quality control, and portfolio, educational, or promotional purposes.
-
-Unless the Customer objects in writing before work begins, the Customer grants the Service Provider a non-exclusive, royalty-free license to use such images and recordings. Personally identifying information will be excluded; the Customer will not be identified by name without separate written consent.`],
-
-  ['14. Electronic Acceptance and Communications',
-   `The Customer acknowledges and agrees that this Agreement may be delivered, accepted, and executed electronically.
-
-- Agreement to these terms may be confirmed by email response or other written electronic communication indicating acceptance.
-- Such electronic acceptance shall be deemed legally binding and equivalent to a handwritten signature.
-- No physical signature is required for this Agreement to be valid and enforceable.`],
-
-  ['15. Governing Law, Venue, and Dispute Resolution',
-   `This Agreement shall be governed by and construed in accordance with the laws of the State of Minnesota, without regard to conflict-of-law principles.
-
-Any dispute arising out of or relating to this Agreement or the Services shall be brought exclusively in the appropriate courts of Hennepin County, Minnesota, and the Customer consents to such jurisdiction and venue.`],
-
-  ['16. Severability',
-   `If any provision of this Agreement is determined by a court of competent jurisdiction to be invalid, illegal, or unenforceable, that provision shall be enforced to the maximum extent permitted by law, and the remaining provisions shall remain in full force and effect.`],
-
-  ['17. Entire Agreement',
-   `This Agreement constitutes the entire understanding between the Customer and the Service Provider with respect to the Services. It supersedes all prior or contemporaneous discussions, representations, understandings, negotiations, and agreements, whether oral or written, relating to the subject matter of this Agreement.
-
-No amendment, modification, or waiver of any provision shall be effective unless made in writing and agreed to by both parties.`],
-
-  ['18. Acceptance of Agreement',
-   `By replying to the accompanying email, checking the acceptance box on the Service Provider's intake form, or otherwise submitting Card(s) for repair or restoration services, the Customer affirms that they have read, understood, and voluntarily agreed to the terms of this Agreement in full.`],
+  { id:'Clean + Polish', label:'Clean + Polish',       price:8  },
+  { id:'Lift',           label:'Lift — Edge & Corner', price:30, includesClean:true },
+  { id:'Dent',           label:'Dent Correction',      price:50, includesClean:true },
+  { id:'Crease',         label:'Crease Correction',    price:70, includesClean:true },
 ];
 
-// ── Signature pad ─────────────────────────────────────────────────────────────
-function SigPad({ onChange }) {
-  const canvas  = useRef(null)
-  const drawing = useRef(false)
-  const last    = useRef({ x: 0, y: 0 })
-  const [drawn, setDrawn] = useState(false)
+// Condition IDs match Notion "Condition (Before)" select options exactly
+const CONDITIONS      = ['NM','LP','MP','HP','DMG'];
+const CONTACT_METHODS = ['Email','Text','Facebook','Instagram'];
+const PAYMENT_TYPES   = ['Cash','PayPal','Venmo','Zelle'];
+const STEP_NAMES      = ['Client Info','Cards','Waiver','Payment','Sign Off'];
+
+// Status flow: Pending → In Progress → Complete → Picked Up
+const STATUS_NEXT = {
+  pending:     'in_progress',
+  in_progress: 'complete',
+  complete:    'picked_up',
+};
+const STATUS_LABEL = {
+  pending:     'Pending',
+  in_progress: 'In Progress',
+  complete:    'Complete',
+  picked_up:   'Picked Up',
+};
+const STATUS_BTN = {
+  pending:     'Start →',
+  in_progress: 'Complete ✓',
+  complete:    'Mark Picked Up',
+};
+
+// The official 18-section agreement — MUST stay identical to SECTIONS in
+// api/send-waiver.js, so the signed PDF matches what the client read here.
+const WAIVER_SECTIONS = [
+  { t:'Preamble', b:"This Service Agreement is entered into between Just Mint Card Care (the \"Service Provider\") and the Customer identified in the Submission Details of this Agreement (the \"Customer\"), effective as of the date the Customer accepts these terms as described in Section 18." },
+  { t:'1. Services and Scope', b:"The Service Provider agrees to perform the repair and restoration services described in the Quote (the \"Services\") on the trading card(s) identified therein (the \"Card(s)\")." },
+  { t:'2. Acknowledgment of Risk', b:"Card repair and restoration involve specialized techniques that carry inherent risks, including minor alterations in texture, gloss, or coloration; changes in surface integrity including additional whitening or increased visibility of existing defects; unforeseen reactions to materials, treatments, heat, pressure, hydration, or cleaning processes; the possibility that defects cannot be fully repaired and may remain visible; and the possibility that Card(s) may be left in a condition equal to or worse than on arrival. No specific outcome is guaranteed and some changes may be permanent or irreversible." },
+  { t:'3. Assumption of Risk and Limitation of Liability', b:"The Customer knowingly assumes all risks associated with the repair and restoration process. To the fullest extent permitted by applicable law, the Service Provider shall not be liable for any loss in value, condition change, or damage arising during or after the restoration process, including fading, color shifts, whitening, gloss variation, surface changes, creases, dents, imperfections that may not be fully removable, or any impact on the Card's eligibility for grading, authentication, or resale. Liability Cap: the Service Provider's total aggregate liability shall not exceed the total fees paid by the Customer for the Services. Nothing in this Agreement limits liability for gross negligence, willful misconduct, or fraud." },
+  { t:'4. No Guarantee of Grading or Value', b:"The Service Provider makes no representations or warranties regarding the outcome of grading or authentication by third-party companies including PSA, Beckett (BGS), CGC, SGC, or similar entities; whether a Card will be flagged as altered, restored, or ineligible for numeric grading; or the market value, resale value, or collectability of any Card following restoration. All grading determinations are made solely by independent third parties entirely outside the Service Provider's control." },
+  { t:'5. Custody of Property', b:"The Service Provider will exercise reasonable care in safeguarding the Customer's Card(s) while in the Service Provider's possession. The Service Provider is not an insurer of the Card(s). Except to the extent caused by gross negligence, willful misconduct, or fraud, the Service Provider shall not be liable for loss, theft, burglary, fire, vandalism, natural disaster, or other events beyond reasonable control. The Customer is encouraged to obtain appropriate insurance coverage for valuable Card(s)." },
+  { t:'6. Pre-Existing Conditions and Hidden Defects', b:"Collectible trading cards may contain pre-existing damage, hidden defects, prior restoration, manufacturing irregularities, or other conditions not visible or reasonably discoverable before restoration begins. Such conditions may affect the restoration process or become apparent only after treatment commences. The Service Provider shall not be responsible for adverse outcomes resulting from pre-existing or concealed conditions that could not reasonably have been identified prior to performing the authorized Services." },
+  { t:'7. Authorization for Restoration Methods', b:"The Customer authorizes the Service Provider to perform the Services using professional judgment, experience, and customary restoration techniques, including the selection of materials, tools, processes, heat, pressure, hydration, cleaning, or other methods the Service Provider reasonably determines are appropriate. If a material change in scope is necessary, the Customer's written approval will be obtained before proceeding, unless immediate action is necessary to prevent further damage to the Card." },
+  { t:'8. Payment, Possession, and Unclaimed Property (Minnesota)', b:"Payment for all Services is due in full within fourteen (14) calendar days of completion notice. The Service Provider shall retain possession of the Card(s) until payment is received in full. Under Minnesota law, the Service Provider does not have authority to sell, auction, transfer, or dispose of the Card(s) to satisfy unpaid fees. All notices will be sent exclusively by email. If the Customer fails to pay or retrieve the Card(s) within ninety (90) days of completion notice, storage fees apply: $15/month for Days 91-180, $25/month for Days 181-365, and $35/month beyond 365 days. Fees must be paid in full before cards are released; partial months are prorated. Trading cards cannot be transferred to the State of Minnesota as unclaimed property under Minnesota Statutes Chapter 345. Card(s) remain in the Service Provider's custody until retrieved by the Customer." },
+  { t:'9. Cancellation and Refunds', b:"The Customer may cancel at any time before work begins for a full refund. Once work has commenced, no refunds will be issued for services already performed. If a card cannot be serviced due to being counterfeit or unsafe to work on, the service fee for that card will be refunded in full. If the agreed scope changes due to hidden damage and no revised agreement is reached, the portion of work not performed will be refunded." },
+  { t:'10. Release of Claims', b:"By submitting Card(s) for repair or restoration, the Customer releases and discharges the Service Provider from claims arising out of or related to the inherent risks of authorized restoration services, except to the extent caused by gross negligence, willful misconduct, or fraud." },
+  { t:'11. Customer Ownership, Authority, and Disclosure Obligations', b:"The Customer represents and warrants that they are the lawful owner of the Card(s) submitted, or have full legal authority to authorize the Services. The Customer agrees that any subsequent sale, trade, consignment, or grading submission is the Customer's sole responsibility to disclose accurately. The Service Provider expressly disclaims any participation in misrepresentation of restored Card(s) as unrestored. The Customer agrees to indemnify and hold harmless the Service Provider from any claim arising out of the Customer's failure to disclose restoration." },
+  { t:'12. Good-Faith Customer Care', b:"While this Agreement limits liability, Just Mint Card Care values transparency and customer satisfaction. Concerns should be communicated promptly to justminttcg@gmail.com. The Service Provider may, at its sole discretion, address issues as a customer service courtesy. Nothing in this Agreement shall be interpreted as an obligation to provide refunds, replacements, or compensation." },
+  { t:'13. Photography and Documentation', b:"The Service Provider may photograph or record the Card(s) before, during, and after Services for documentation, quality control, and portfolio, educational, or promotional purposes. Unless the Customer objects in writing before work begins, the Customer grants the Service Provider a non-exclusive, royalty-free license to use such images and recordings. Personally identifying information will be excluded; the Customer will not be identified by name without separate written consent." },
+  { t:'14. Electronic Acceptance and Communications', b:"This Agreement may be delivered, accepted, and executed electronically. Agreement may be confirmed by email response or other written electronic communication, which shall be deemed legally binding and equivalent to a handwritten signature. No physical signature is required for this Agreement to be valid and enforceable." },
+  { t:'15. Governing Law, Venue, and Dispute Resolution', b:"This Agreement shall be governed by and construed in accordance with the laws of the State of Minnesota, without regard to conflict-of-law principles. Any dispute arising out of or relating to this Agreement shall be brought exclusively in the appropriate courts of Hennepin County, Minnesota." },
+  { t:'16. Severability', b:"If any provision of this Agreement is determined to be invalid, illegal, or unenforceable, that provision shall be enforced to the maximum extent permitted by law, and the remaining provisions shall remain in full force and effect." },
+  { t:'17. Entire Agreement', b:"This Agreement constitutes the entire understanding between the Customer and the Service Provider with respect to the Services. It supersedes all prior or contemporaneous discussions, representations, understandings, negotiations, and agreements, whether oral or written. No amendment, modification, or waiver shall be effective unless made in writing and agreed to by both parties." },
+  { t:'18. Acceptance of Agreement', b:"By replying to the accompanying email, checking the acceptance box on the Service Provider's intake form, or submitting Card(s) for repair or restoration services, the Customer affirms that they have read, understood, and voluntarily agreed to the terms of this Agreement in full." },
+];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const emptyForm = () => ({
+  clientName:'', clientEmail:'', clientPhone:'', contactMethod:'',
+  cards:[], agreed:false, paymentType:'',
+});
+
+const emptyCard = () => ({
+  cardName:'', year:'', cardNumber:'', condition:'', service:''
+});
+
+const genId = (list) => {
+  const max = list.reduce((m, o) => {
+    const n = parseInt(o.id.replace('ORD-',''), 10);
+    return n > m ? n : m;
+  }, 0);
+  return `ORD-${String(max + 1).padStart(3,'0')}`;
+};
+
+const batchTotal = (cards) =>
+  cards.reduce((sum, c) => sum + (SERVICES.find(s => s.id === c.service)?.price || 0), 0);
+
+// ─── Notion Sync ──────────────────────────────────────────────────────────────
+async function syncOrderToNotion(order) {
+  if (!NOTION_SYNC) return { success:false, error:'Notion sync disabled' };
+  try {
+    const res = await fetch(`${NOTION_PROXY_URL}/api/sync-order`, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify(order),
+    });
+    if (!res.ok) throw new Error(`Server responded ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    return { success:false, error: err.message };
+  }
+}
+
+// ─── Shared Styles ────────────────────────────────────────────────────────────
+const IS = (err) => ({
+  width:'100%', padding:'10px 12px', borderRadius:8, boxSizing:'border-box',
+  border:`1.5px solid ${err ? C.danger : C.border}`,
+  background:C.white, color:C.text, fontSize:15, fontFamily:'inherit',
+  outline:'none', WebkitAppearance:'none', appearance:'none',
+});
+
+const LS = {
+  fontSize:11, fontWeight:700, color:C.muted, marginBottom:5,
+  display:'block', letterSpacing:'0.07em', textTransform:'uppercase',
+};
+
+// ─── Micro Components ─────────────────────────────────────────────────────────
+function Err({ m }) {
+  if (!m) return null;
+  return <span style={{ fontSize:12, color:C.danger, display:'block', marginTop:4 }}>{m}</span>;
+}
+
+function StatusBadge({ status }) {
+  const map = {
+    pending:     { bg:'rgba(161,100,0,0.10)',  color:'#7a4d00' },
+    in_progress: { bg:'rgba(0,137,34,0.12)',   color:'#005c18' },
+    complete:    { bg:'rgba(20,70,200,0.09)',   color:'#1a3a8a' },
+    picked_up:   { bg:'rgba(100,50,160,0.09)', color:'#4a1a8a' },
+  };
+  const s = map[status] || map.pending;
+  return (
+    <span style={{
+      fontSize:10, padding:'3px 10px', borderRadius:3,
+      fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase',
+      background:s.bg, color:s.color,
+    }}>
+      {STATUS_LABEL[status] || status}
+    </span>
+  );
+}
+
+function NotionSyncBadge({ synced, error }) {
+  if (!NOTION_SYNC) return null;
+  return (
+    <span style={{
+      fontSize:9, padding:'2px 8px', borderRadius:3,
+      fontWeight:600, letterSpacing:'0.06em',
+      background: synced ? 'rgba(0,137,34,0.08)' : 'rgba(185,28,28,0.08)',
+      color: synced ? C.main : C.danger,
+    }}>
+      {synced ? '✓ Notion' : error ? '⚠ Sync failed' : '○ Not synced'}
+    </span>
+  );
+}
+
+// ─── Signature Pad ────────────────────────────────────────────────────────────
+function SignaturePad({ onDataChange }) {
+  const canvasRef = useRef(null);
+  const drawing   = useRef(false);
+  const last      = useRef(null);
 
   useEffect(() => {
-    const ctx = canvas.current.getContext('2d')
-    Object.assign(ctx, { strokeStyle: C.text, lineWidth: 2, lineCap: 'round', lineJoin: 'round' })
-  }, [])
+    const c = canvasRef.current;
+    if (!c) return;
+    c.width  = c.offsetWidth;
+    c.height = 150;
+  }, []);
 
-  function pt(e) {
-    const r = canvas.current.getBoundingClientRect()
-    const s = e.touches ? e.touches[0] : e
-    return { x: (s.clientX - r.left) * canvas.current.width  / r.width,
-             y: (s.clientY - r.top)  * canvas.current.height / r.height }
-  }
+  const getXY = (e) => {
+    const c   = canvasRef.current;
+    const r   = c.getBoundingClientRect();
+    const scX = c.width  / r.width;
+    const scY = c.height / r.height;
+    const src = e.touches ? e.touches[0] : e;
+    return { x:(src.clientX - r.left)*scX, y:(src.clientY - r.top)*scY };
+  };
 
-  function onDown(e) { e.preventDefault(); drawing.current = true; last.current = pt(e) }
-  function onMove(e) {
-    e.preventDefault()
-    if (!drawing.current) return
-    const p = pt(e), ctx = canvas.current.getContext('2d')
-    ctx.beginPath(); ctx.moveTo(last.current.x, last.current.y); ctx.lineTo(p.x, p.y); ctx.stroke()
-    last.current = p
-    if (!drawn) setDrawn(true)
-    onChange(canvas.current.toDataURL())
-  }
-  function onUp(e) { e?.preventDefault(); drawing.current = false }
+  const startDraw = (e) => { e.preventDefault(); drawing.current = true; last.current = getXY(e); };
+  const doDraw    = (e) => {
+    e.preventDefault();
+    if (!drawing.current) return;
+    const c   = canvasRef.current;
+    const ctx = c.getContext('2d');
+    const pt  = getXY(e);
+    ctx.beginPath();
+    ctx.moveTo(last.current.x, last.current.y);
+    ctx.lineTo(pt.x, pt.y);
+    ctx.strokeStyle = C.secondary;
+    ctx.lineWidth   = 2.5;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    ctx.stroke();
+    last.current = pt;
+    onDataChange(c.toDataURL());
+  };
+  const endDraw = (e) => { e.preventDefault(); drawing.current = false; };
 
-  function clear() {
-    canvas.current.getContext('2d').clearRect(0, 0, canvas.current.width, canvas.current.height)
-    setDrawn(false)
-    onChange(null)
-  }
+  const clearPad = () => {
+    const c = canvasRef.current;
+    c.getContext('2d').clearRect(0, 0, c.width, c.height);
+    onDataChange(null);
+  };
 
   return (
-    <>
-      <canvas ref={canvas} width={560} height={150}
-        onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
-        onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
-        style={{ width: '100%', height: 140, display: 'block', touchAction: 'none', cursor: 'crosshair',
-          borderRadius: 8, border: `1.5px solid ${drawn ? C.green : C.border}`,
-          background: drawn ? '#f0faf3' : C.white }} />
-      {drawn && (
-        <button onClick={clear} type="button"
-          style={{ background: 'none', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', padding: '5px 0', textDecoration: 'underline' }}>
-          Clear &amp; redraw
-        </button>
-      )}
-    </>
-  )
-}
-
-// ── Shared UI ─────────────────────────────────────────────────────────────────
-const inputStyle = {
-  width: '100%', padding: '10px 12px', fontSize: 15, fontFamily: 'Georgia,serif',
-  background: C.bg, color: C.text, borderRadius: 8, boxSizing: 'border-box',
-  outline: 'none', WebkitAppearance: 'none',
-}
-
-function Wrap({ step, children }) {
-  return (
-    <div style={{ maxWidth: 600, margin: '0 auto', minHeight: '100vh', background: C.bg, fontFamily: 'Georgia,serif', paddingBottom: 48 }}>
-      <div style={{ height: 4, background: `linear-gradient(90deg,${C.green},${C.dark})` }} />
-      <div style={{ textAlign: 'center', padding: '22px 16px 18px' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: C.dark }}>Just Mint Card Care</div>
-        <div style={{ fontSize: 11, color: C.muted, marginTop: 3, letterSpacing: '.06em', textTransform: 'uppercase' }}>
-          Service Agreement &amp; Liability Waiver
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12 }}>
-          {[1,2,3].map(n => (
-            <div key={n} style={{ height: 8, borderRadius: 4, transition: 'all .2s',
-              width: n === step ? 24 : 8, background: n <= step ? C.green : C.border }} />
-          ))}
-        </div>
+    <div>
+      <div style={{ position:'relative' }}>
+        <canvas
+          ref={canvasRef}
+          style={{
+            display:'block', width:'100%', height:'150px',
+            borderRadius:8, border:`1.5px solid ${C.border}`,
+            background:C.white, touchAction:'none', cursor:'crosshair',
+          }}
+          onMouseDown={startDraw}   onMouseMove={doDraw}
+          onMouseUp={endDraw}       onMouseLeave={endDraw}
+          onTouchStart={startDraw}  onTouchMove={doDraw}  onTouchEnd={endDraw}
+        />
+        <button type="button" onClick={clearPad} style={{
+          position:'absolute', top:8, right:8, fontSize:11,
+          padding:'4px 12px', borderRadius:5,
+          background:'rgba(255,255,255,0.92)',
+          border:`1px solid ${C.border}`, color:C.muted, cursor:'pointer',
+        }}>Clear</button>
       </div>
-      <div style={{ padding: '0 16px' }}>{children}</div>
+      <p style={{ fontSize:11, color:C.light, margin:'5px 0 0', lineHeight:1.4 }}>
+        Sign using your mouse, stylus, or finger.
+      </p>
     </div>
-  )
+  );
 }
 
-function Box({ children, onClick, fade, style = {} }) {
+// ─── Step 1: Client Info ──────────────────────────────────────────────────────
+function StepClientInfo({ form, setForm, errors }) {
+  const f = (k) => (e) => setForm(p => ({ ...p, [k]:e.target.value }));
   return (
-    <div onClick={onClick} style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12,
-      padding: 18, marginBottom: 14, cursor: onClick ? 'pointer' : 'default',
-      opacity: fade ? 0.4 : 1, transition: 'opacity .2s', ...style }}>
-      {children}
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <div>
+        <label style={LS}>Client Name *</label>
+        <input style={IS(errors.clientName)} value={form.clientName} onChange={f('clientName')} placeholder="Full legal name" autoComplete="off" />
+        <Err m={errors.clientName} />
+      </div>
+      <div>
+        <label style={LS}>Email *</label>
+        <input type="email" inputMode="email" style={IS(errors.clientEmail)} value={form.clientEmail} onChange={f('clientEmail')} placeholder="client@email.com" autoCapitalize="none" />
+        <Err m={errors.clientEmail} />
+      </div>
+      <div>
+        <label style={LS}>Phone *</label>
+        <input type="tel" inputMode="tel" style={IS(errors.clientPhone)} value={form.clientPhone} onChange={f('clientPhone')} placeholder="(612) 555-0000" />
+        <Err m={errors.clientPhone} />
+      </div>
+      <div>
+        <label style={LS}>Preferred Contact Method *</label>
+        <select style={IS(errors.contactMethod)} value={form.contactMethod} onChange={f('contactMethod')}>
+          <option value="">Select method…</option>
+          {CONTACT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+        <Err m={errors.contactMethod} />
+      </div>
     </div>
-  )
+  );
 }
 
-function Cap({ children }) {
-  return <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', color: C.muted, textTransform: 'uppercase', marginBottom: 10 }}>{children}</div>
-}
+// ─── Step 2: Cards (Batch) ────────────────────────────────────────────────────
+function StepCards({ form, setForm, errors }) {
+  const [draft,    setDraft]    = useState(emptyCard());
+  const [adding,   setAdding]   = useState(form.cards.length === 0);
+  const [draftErr, setDraftErr] = useState({});
 
-function Btn({ children, onClick, disabled }) {
+  const df = (k) => (e) => setDraft(p => ({ ...p, [k]:e.target.value }));
+
+  const validateDraft = () => {
+    const e = {};
+    if (!draft.cardName.trim())  e.cardName  = 'Card name is required';
+    if (!draft.year.trim())      e.year      = 'Year is required';
+    else if (!/^\d{4}$/.test(draft.year.trim())) e.year = 'Enter a valid 4-digit year';
+    if (!draft.condition)        e.condition = 'Select a condition';
+    if (!draft.service)          e.service   = 'Select a service';
+    return e;
+  };
+
+  const addCard = () => {
+    const e = validateDraft();
+    if (Object.keys(e).length) { setDraftErr(e); return; }
+    setForm(p => ({ ...p, cards:[...p.cards, { ...draft }] }));
+    setDraft(emptyCard());
+    setDraftErr({});
+    setAdding(false);
+  };
+
+  const removeCard = (i) =>
+    setForm(p => ({ ...p, cards: p.cards.filter((_, idx) => idx !== i) }));
+
+  const svcFor   = (id) => SERVICES.find(s => s.id === id);
+  const total    = batchTotal(form.cards);
+  const draftSvc = SERVICES.find(s => s.id === draft.service);
+
   return (
-    <button onClick={onClick} disabled={disabled} type="button" style={{
-      width: '100%', padding: 15, fontSize: 15, fontWeight: 600, borderRadius: 10,
-      border: 'none', background: disabled ? C.muted : C.green, color: '#fff',
-      cursor: disabled ? 'not-allowed' : 'pointer',
-    }}>
-      {children}
-    </button>
-  )
-}
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      {/* Empty state */}
+      {form.cards.length === 0 && !adding && (
+        <div style={{
+          textAlign:'center', padding:'28px 20px',
+          color:C.muted, fontSize:13, lineHeight:1.6,
+          background:C.alt, borderRadius:10, border:`1px dashed ${C.border}`,
+        }}>
+          No cards added yet.<br />
+          Tap <strong>+ Add Card</strong> below to start your batch.
+        </div>
+      )}
 
-// ── Step 1: Review ────────────────────────────────────────────────────────────
-function Review({ onNext }) {
-  return (
-    <>
-      <Box>
-        <Cap>Service Rates — Per Card</Cap>
-        {SERVICES.map((s, i) => (
-          <div key={s.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-            padding: '8px 0', borderBottom: i < SERVICES.length - 1 ? `.5px solid ${C.border}` : 'none' }}>
-            <span style={{ fontSize: 14 }}>
-              {s.name}{s.note && <span style={{ fontSize: 11, color: C.muted, marginLeft: 5 }}>({s.note})</span>}
-            </span>
-            <span style={{ fontSize: 15, fontWeight: 700, color: C.green }}>{s.price}</span>
+      {/* Card rows */}
+      {form.cards.map((card, i) => {
+        const svc = svcFor(card.service);
+        return (
+          <div key={i} style={{
+            background:C.white, border:`1px solid ${C.border}`,
+            borderRadius:10, padding:'12px 14px',
+            display:'flex', justifyContent:'space-between', alignItems:'center',
+            gap:10,
+          }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:14, fontWeight:700, color:C.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                {card.cardName} ({card.year})
+              </div>
+              <div style={{ fontSize:12, color:C.muted, marginTop:3 }}>
+                {card.condition} · {svc?.label} · ${svc?.price}
+                {card.cardNumber ? ` · #${card.cardNumber}` : ''}
+              </div>
+            </div>
+            <button type="button" onClick={() => removeCard(i)} style={{
+              background:'transparent', border:`1px solid ${C.border}`,
+              borderRadius:6, color:C.danger, fontSize:18, lineHeight:1,
+              padding:'4px 10px', cursor:'pointer', flexShrink:0,
+            }}>×</button>
           </div>
-        ))}
-      </Box>
+        );
+      })}
 
-      <Box>
-        <Cap>Agreement Terms — Please Read Carefully</Cap>
-        {SECTIONS.map(([title, body], i) => (
-          <div key={i} style={{ marginBottom: i < SECTIONS.length - 1 ? 16 : 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.dark, marginBottom: 4 }}>{title}</div>
-            <div style={{ fontSize: 13, color: C.text, lineHeight: 1.75, whiteSpace: 'pre-line' }}>{body}</div>
-          </div>
-        ))}
-      </Box>
-
-      <Btn onClick={onNext}>I Have Read the Terms — Continue to Sign →</Btn>
-    </>
-  )
-}
-
-// ── Step 2: Sign ──────────────────────────────────────────────────────────────
-function Sign({ onBack, onDone }) {
-  const [name,     setName]     = useState('')
-  const [notes,    setNotes]    = useState('')
-  const [sig,      setSig]      = useState(null)
-  const [agreed,   setAgreed]   = useState(false)
-  const [errs,     setErrs]     = useState({})
-  const [sending,  setSending]  = useState(false)
-  const [apiError, setApiError] = useState(null)
-
-  function err(k) {
-    return errs[k] ? <div style={{ color: '#b91c1c', fontSize: 12, marginTop: 5 }}>{errs[k]}</div> : null
-  }
-
-  async function submit() {
-    const e = {}
-    if (name.trim().length < 2) e.name   = 'Please enter your full name.'
-    if (!sig)                    e.sig    = 'Please draw your signature.'
-    if (!agreed)                 e.agreed = 'Please check the box to agree.'
-    if (Object.keys(e).length) { setErrs(e); return }
-
-    setSending(true)
-    setApiError(null)
-
-    const record = {
-      clientName: name.trim(),
-      notes:      notes.trim() || null,
-      signedAt:   new Date().toISOString(),
-      sigDataUrl: sig,
-    }
-
-    try {
-      const res = await fetch('/api/send-waiver', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(record),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || `Server error (${res.status})`)
-      }
-      onDone(record)
-    } catch (err) {
-      setApiError(err.message)
-      setSending(false)
-    }
-  }
-
-  return (
-    <>
-      <button onClick={onBack} type="button"
-        style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, cursor: 'pointer', padding: '0 0 12px' }}>
-        ← Back
-      </button>
-
-      <Box>
-        <Cap>Full Name *</Cap>
-        <input value={name} placeholder="Your full legal name"
-          onChange={e => { setName(e.target.value); setErrs(p => ({ ...p, name: null })) }}
-          style={{ ...inputStyle, border: `1.5px solid ${errs.name ? '#b91c1c' : C.border}` }} />
-        {err('name')}
-      </Box>
-
-      <Box>
-        <Cap>Optional Notes</Cap>
-        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-          placeholder="Special instructions, card details..."
-          style={{ ...inputStyle, border: `1.5px solid ${C.border}`, resize: 'vertical', lineHeight: 1.6 }} />
-      </Box>
-
-      <Box>
-        <Cap>Signature *</Cap>
-        <p style={{ fontSize: 12, color: C.muted, margin: '0 0 8px' }}>Draw using your finger or mouse.</p>
-        <SigPad onChange={c => { setSig(c); if (c) setErrs(p => ({ ...p, sig: null })); else setAgreed(false) }} />
-        {err('sig')}
-      </Box>
-
-      <Box onClick={sig ? () => { setAgreed(a => !a); setErrs(p => ({ ...p, agreed: null })) } : null} fade={!sig}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-          <div style={{ width: 20, height: 20, minWidth: 20, borderRadius: 5, marginTop: 2, flexShrink: 0,
-            border: `2px solid ${errs.agreed ? '#b91c1c' : agreed ? C.green : C.border}`,
-            background: agreed ? C.green : C.white,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: sig ? 'pointer' : 'not-allowed' }}>
-            {agreed && <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>✓</span>}
+      {/* Add card form */}
+      {adding && (
+        <div style={{
+          background:C.white, border:`1.5px solid ${C.main}`,
+          borderRadius:10, padding:'16px 14px',
+          display:'flex', flexDirection:'column', gap:12,
+        }}>
+          <div style={{ fontSize:12, fontWeight:700, color:C.main, textTransform:'uppercase', letterSpacing:'0.07em' }}>
+            {form.cards.length > 0 ? `Card ${form.cards.length + 1}` : 'Card Details'}
           </div>
           <div>
-            <p style={{ fontSize: 13, color: C.text, lineHeight: 1.7, margin: 0 }}>
-              I have read and agree to the <strong>Just Mint Card Care Service Agreement &amp; Liability Waiver</strong>.
-            </p>
-            {!sig && <p style={{ fontSize: 11, color: C.muted, margin: '5px 0 0', fontStyle: 'italic' }}>Draw your signature to unlock.</p>}
+            <label style={LS}>Card Name *</label>
+            <input style={IS(draftErr.cardName)} value={draft.cardName} onChange={df('cardName')} placeholder="e.g. Charizard Holo" autoComplete="off" />
+            <Err m={draftErr.cardName} />
           </div>
-        </div>
-        {err('agreed')}
-      </Box>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <div>
+              <label style={LS}>Year *</label>
+              <input style={IS(draftErr.year)} value={draft.year} onChange={df('year')} placeholder="1999" maxLength={4} inputMode="numeric" />
+              <Err m={draftErr.year} />
+            </div>
+            <div>
+              <label style={LS}>Card #</label>
+              <input style={IS()} value={draft.cardNumber} onChange={df('cardNumber')} placeholder="4/102" />
+            </div>
+          </div>
+          <div>
+            <label style={LS}>Condition *</label>
+            <select style={IS(draftErr.condition)} value={draft.condition} onChange={df('condition')}>
+              <option value="">Select condition…</option>
+              {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <Err m={draftErr.condition} />
+          </div>
+          <div>
+            <label style={LS}>Service *</label>
+            <select style={IS(draftErr.service)} value={draft.service} onChange={df('service')}>
+              <option value="">Select service…</option>
+              {SERVICES.map(s => (
+                <option key={s.id} value={s.id}>{s.label} — ${s.price}</option>
+              ))}
+            </select>
+            <Err m={draftErr.service} />
+          </div>
 
-      {apiError && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8,
-          padding: 12, marginBottom: 14, fontSize: 13, color: '#b91c1c' }}>
-          ⚠️ {apiError}
+          {/* Includes clean note */}
+          {draftSvc?.includesClean && (
+            <div style={{ fontSize:12, color:C.main, background:C.alt, borderRadius:6, padding:'8px 10px' }}>
+              ✓ Includes Clean + Polish at no extra charge
+            </div>
+          )}
+          {!draft.service && (
+            <div style={{ fontSize:11, color:C.muted, fontStyle:'italic' }}>
+              Note: Edge, Dent, and Crease services include Clean + Polish.
+            </div>
+          )}
+
+          <div style={{ display:'flex', gap:8 }}>
+            {form.cards.length > 0 && (
+              <button type="button" onClick={() => { setAdding(false); setDraftErr({}); setDraft(emptyCard()); }} style={{
+                flex:1, padding:'11px', borderRadius:8, fontSize:14,
+                background:C.bg, border:`1.5px solid ${C.border}`,
+                color:C.text, cursor:'pointer', fontFamily:'inherit',
+              }}>Cancel</button>
+            )}
+            <button type="button" onClick={addCard} style={{
+              flex:2, padding:'11px', borderRadius:8, fontSize:14,
+              fontWeight:700, background:C.main, border:'none',
+              color:'#fff', cursor:'pointer', fontFamily:'inherit',
+            }}>Add Card</button>
+          </div>
         </div>
       )}
 
-      <div style={{ fontSize: 12, color: C.muted, textAlign: 'center', marginBottom: 10 }}>
-        {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-      </div>
+      {/* Add another button */}
+      {!adding && (
+        <button type="button" onClick={() => setAdding(true)} style={{
+          width:'100%', padding:'13px', borderRadius:8, fontSize:14,
+          fontWeight:600, background:'transparent',
+          border:`2px dashed ${C.border}`, color:C.main,
+          cursor:'pointer', fontFamily:'inherit',
+        }}>+ Add Card to Batch</button>
+      )}
 
-      <Btn onClick={submit} disabled={sending}>
-        {sending ? 'Submitting…' : 'Sign & Submit Agreement'}
-      </Btn>
-    </>
-  )
+      <Err m={errors.cards} />
+
+      {/* Batch total */}
+      {form.cards.length > 0 && (
+        <div style={{
+          background:C.alt, border:`1px solid ${C.border}`,
+          borderRadius:8, padding:'10px 14px',
+          display:'flex', justifyContent:'space-between', alignItems:'center',
+        }}>
+          <span style={{ fontSize:13, color:C.muted }}>
+            {form.cards.length} card{form.cards.length !== 1 ? 's' : ''} in batch
+          </span>
+          <span style={{ fontSize:20, fontWeight:800, color:C.main }}>${total}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
-// ── Step 3: Done ──────────────────────────────────────────────────────────────
-// ── Step 3: Done ──────────────────────────────────────────────────────────────
-function Done({ record, onReset }) {
-  const signed = new Date(record.signedAt).toLocaleString('en-US', {
-    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
-
+// ─── Step 3: Waiver ───────────────────────────────────────────────────────────
+function StepWaiver({ form, setForm, sigData, setSigData, errors }) {
   return (
-    <div style={{ textAlign: 'center' }}>
-      <div style={{ width: 68, height: 68, borderRadius: '50%', background: C.green,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
-        <span style={{ color: '#fff', fontSize: 30 }}>✓</span>
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: C.dark, marginBottom: 6 }}>Agreement Signed</div>
-      <div style={{ fontSize: 14, color: C.muted, marginBottom: 24, lineHeight: 1.6 }}>
-        Thank you, <strong>{record.clientName}</strong>.<br />
-        A signed PDF copy has been sent to Just Mint Card Care.
-      </div>
-
-      <Box style={{ textAlign: 'left' }}>
-        <Cap>Confirmation</Cap>
-        {[
-          ['Client', record.clientName],
-          ['Signed', signed],
-          ...(record.notes ? [['Notes', record.notes]] : []),
-        ].map(([l, v]) => (
-          <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14,
-            padding: '7px 0', borderBottom: `.5px solid ${C.border}` }}>
-            <span style={{ color: C.muted, marginRight: 12, flexShrink: 0 }}>{l}</span>
-            <span style={{ fontWeight: 600, textAlign: 'right' }}>{v}</span>
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <div>
+        <label style={LS}>Service Agreement — Scroll to read in full</label>
+        <div style={{
+          height:220, overflowY:'auto', border:`1.5px solid ${C.border}`,
+          borderRadius:8, padding:'14px 16px', background:C.white,
+          fontSize:12.5, lineHeight:1.75, color:C.text,
+          WebkitOverflowScrolling:'touch',
+        }}>
+          <div style={{ textAlign:'center', marginBottom:16 }}>
+            <div style={{ fontWeight:700, fontSize:14, color:C.secondary, fontFamily:"Georgia, serif" }}>
+              JUST MINT TCG — Card Cleaning Co.
+            </div>
+            <div style={{ fontSize:11, fontStyle:'italic', color:C.muted, marginTop:2 }}>
+              Mint condition. Every time.
+            </div>
+            <div style={{ fontSize:11, color:C.light, marginTop:4 }}>
+              Minneapolis, Minnesota · Version 1.0 · Effective 4/29/2026
+            </div>
           </div>
-        ))}
-        {record.sigDataUrl && (
-          <div style={{ marginTop: 12 }}>
-            <Cap>Signature on file</Cap>
-            <img src={record.sigDataUrl} alt="sig"
-              style={{ maxWidth: 200, height: 50, objectFit: 'contain', border: `1px solid ${C.border}`, borderRadius: 6, padding: 3 }} />
+          <p style={{ marginBottom:14 }}>
+            This Client Service Agreement ("Agreement") is between Just Mint TCG — Card Cleaning Co. ("Just Mint Card Care," "we," or "us") and the client signing below ("you" or "Client"). By signing, you agree to all terms described in this document. Please read it fully before dropping off any cards.
+          </p>
+          {WAIVER_SECTIONS.map(s => (
+            <div key={s.t} style={{ marginBottom:12 }}>
+              <div style={{ fontWeight:700, color:C.secondary, marginBottom:4, fontSize:12.5 }}>{s.t}</div>
+              <div style={{ color:C.text }}>{s.b}</div>
+            </div>
+          ))}
+          <div style={{
+            marginTop:14, padding:'10px 12px', background:C.alt,
+            borderRadius:6, fontSize:11.5, color:C.muted, lineHeight:1.6,
+          }}>
+            By signing below, you confirm you have read this Agreement in full, agree to all terms and conditions, are at least 18 years of age (or have parental authorization), and that the information you have provided about your cards is accurate and complete.
           </div>
-        )}
-      </Box>
+        </div>
+      </div>
 
-      <button onClick={onReset} type="button"
-        style={{ width: '100%', padding: 15, fontSize: 15, fontWeight: 600, borderRadius: 10,
-          border: `1.5px solid ${C.green}`, background: 'transparent', color: C.green,
-          cursor: 'pointer', marginBottom: 14 }}>
-        Submit Another Waiver
-      </button>
+      <div>
+        <label style={LS}>Client Signature *</label>
+        <SignaturePad onDataChange={setSigData} />
+        <Err m={errors.signature} />
+      </div>
 
-      <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.8 }}>
-        Just Mint Card Care will reach out when your order is ready.<br />
-        Questions? <a href="mailto:justminttcg@gmail.com" style={{ color: C.green }}>justminttcg@gmail.com</a>
+      <label style={{ display:'flex', alignItems:'flex-start', gap:12, cursor:'pointer' }}>
+        <input
+          type="checkbox"
+          checked={form.agreed || false}
+          onChange={e => setForm(p => ({ ...p, agreed:e.target.checked }))}
+          style={{ marginTop:2, accentColor:C.main, width:18, height:18, flexShrink:0, cursor:'pointer' }}
+        />
+        <span style={{ fontSize:14, color:C.text, lineHeight:1.5 }}>
+          I have read and agree to the Just Mint Card Care Service Agreement in full.
+        </span>
+      </label>
+      <Err m={errors.agreed} />
+    </div>
+  );
+}
+
+// ─── Step 4: Payment ──────────────────────────────────────────────────────────
+function StepPayment({ form, setForm, errors }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <p style={{ fontSize:14, color:C.muted, margin:0 }}>
+        Select the payment method used for this order:
+      </p>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+        {PAYMENT_TYPES.map(pt => {
+          const active = form.paymentType === pt;
+          return (
+            <button key={pt} type="button"
+              onClick={() => setForm(p => ({ ...p, paymentType:pt }))}
+              style={{
+                padding:'20px 12px', borderRadius:10, cursor:'pointer',
+                fontSize:15, fontFamily:'inherit',
+                fontWeight: active ? 700 : 400,
+                border:`2px solid ${active ? C.main : C.border}`,
+                background: active ? C.alt : C.white,
+                color: active ? C.main : C.text,
+                transition:'all 0.12s',
+              }}
+            >
+              {pt}
+            </button>
+          );
+        })}
+      </div>
+      <Err m={errors.paymentType} />
+    </div>
+  );
+}
+
+// ─── Step 5: Sign Off ─────────────────────────────────────────────────────────
+function StepSignOff({ form }) {
+  const total = batchTotal(form.cards);
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <p style={{ fontSize:14, color:C.muted, margin:0 }}>
+        Review the full order. Tapping <strong style={{ color:C.secondary }}>Approve & Begin Service</strong> is your authorization to start work.
+      </p>
+
+      {/* Client summary */}
+      <div style={{ background:C.alt, border:`1px solid ${C.border}`, borderRadius:10, padding:14 }}>
+        <div style={{ fontSize:10, color:C.muted, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8 }}>Client</div>
+        <div style={{ fontSize:15, fontWeight:700, color:C.text }}>{form.clientName}</div>
+        <div style={{ fontSize:12, color:C.muted, marginTop:3 }}>
+          {form.clientEmail} · {form.clientPhone} · {form.contactMethod}
+        </div>
+        <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>
+          Payment: {form.paymentType}
+        </div>
+      </div>
+
+      {/* Cards summary */}
+      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+        <div style={{ fontSize:10, color:C.muted, textTransform:'uppercase', letterSpacing:'0.07em' }}>
+          Batch — {form.cards.length} card{form.cards.length !== 1 ? 's' : ''}
+        </div>
+        {form.cards.map((card, i) => {
+          const svc = SERVICES.find(s => s.id === card.service);
+          return (
+            <div key={i} style={{
+              background:C.white, border:`1px solid ${C.border}`,
+              borderRadius:8, padding:'10px 12px',
+              display:'flex', justifyContent:'space-between', alignItems:'center',
+            }}>
+              <div>
+                <div style={{ fontSize:13, fontWeight:600, color:C.text }}>
+                  {card.cardName} ({card.year})
+                  {card.cardNumber ? ` #${card.cardNumber}` : ''}
+                </div>
+                <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
+                  {card.condition} · {svc?.label}
+                </div>
+              </div>
+              <div style={{ fontSize:15, fontWeight:700, color:C.main }}>${svc?.price}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Total */}
+      <div style={{
+        background:C.white, border:`2px solid ${C.main}`, borderRadius:10,
+        padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center',
+      }}>
+        <div>
+          <div style={{ fontSize:10, color:C.muted, textTransform:'uppercase', letterSpacing:'0.07em' }}>Batch Total</div>
+          <div style={{ fontSize:11, color:C.light, marginTop:2 }}>
+            ✓ Waiver signed · {new Date().toLocaleDateString('en-US')}
+          </div>
+        </div>
+        <div style={{ fontSize:28, fontWeight:800, color:C.main }}>${total}</div>
       </div>
     </div>
-  )
+  );
 }
 
-// ── Error boundary ────────────────────────────────────────────────────────────
-class Boundary extends Component {
-  state = { err: null }
-  static getDerivedStateFromError(e) { return { err: e.message || 'Unknown error' } }
-  render() {
-    if (this.state.err) return (
-      <div style={{ padding: 32, fontFamily: 'Georgia,serif', color: C.text, background: C.bg, minHeight: '100vh' }}>
-        <div style={{ height: 4, background: `linear-gradient(90deg,${C.green},${C.dark})`, marginBottom: 24 }} />
-        <div style={{ fontSize: 18, fontWeight: 700, color: C.dark, marginBottom: 8 }}>Something went wrong</div>
-        <div style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>{this.state.err}</div>
-        <button onClick={() => this.setState({ err: null })}
-          style={{ background: C.green, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 14, cursor: 'pointer' }}>
-          Try again
-        </button>
-      </div>
-    )
-    return this.props.children
-  }
-}
-
-// ── Root ──────────────────────────────────────────────────────────────────────
-function Main() {
-  const [step, setStep] = useState(() => {
-    try { return parseInt(localStorage.getItem('jmcc_step') || '1', 10) } catch { return 1 }
-  })
-  const [record, setRecord] = useState(() => {
-    try {
-      const saved = localStorage.getItem('jmcc_record')
-      return saved ? JSON.parse(saved) : null
-    } catch { return null }
-  })
-
-  function goToStep(n, rec = null) {
-    setStep(n)
-    try { localStorage.setItem('jmcc_step', String(n)) } catch {}
-    if (rec) {
-      setRecord(rec)
-      try { localStorage.setItem('jmcc_record', JSON.stringify(rec)) } catch {}
-    }
-  }
-
-  function reset() {
-    setStep(1)
-    setRecord(null)
-    try {
-      localStorage.removeItem('jmcc_step')
-      localStorage.removeItem('jmcc_record')
-    } catch {}
-  }
+// ─── Order Card ───────────────────────────────────────────────────────────────
+function OrderCard({ order, onAdvance, onRetrySync }) {
+  const [expanded, setExpanded] = useState(false);
+  const total     = batchTotal(order.cards || []);
+  const canAdvance = order.status !== 'picked_up';
 
   return (
-    <Wrap step={step}>
-      {step === 1 && <Review onNext={() => goToStep(2)} />}
-      {step === 2 && <Sign   onBack={() => goToStep(1)} onDone={r => goToStep(3, r)} />}
-      {step === 3 && record && <Done record={record} onReset={reset} />}
-    </Wrap>
-  )
+    <div style={{
+      background:C.white, border:`1px solid ${C.border}`,
+      borderRadius:12, marginBottom:10, overflow:'hidden',
+    }}>
+      {/* Main row */}
+      <div
+        style={{ padding:'14px 16px', cursor:'pointer' }}
+        onClick={() => setExpanded(x => !x)}
+      >
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
+          <div style={{ flex:1, marginRight:10 }}>
+            <div style={{ fontSize:15, fontWeight:700, color:C.text, lineHeight:1.3 }}>
+              {order.clientName}
+            </div>
+            <div style={{ fontSize:11, color:C.light, marginTop:1 }}>
+              {order.id} · {order.dateCreated}
+            </div>
+          </div>
+          <div style={{ textAlign:'right', flexShrink:0 }}>
+            <div style={{ fontSize:18, fontWeight:800, color:C.main }}>${total}</div>
+            <div style={{ fontSize:10, color:C.muted }}>
+              {order.cards?.length || 0} card{(order.cards?.length || 0) !== 1 ? 's' : ''}
+            </div>
+          </div>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+          <StatusBadge status={order.status} />
+          <NotionSyncBadge synced={order.notionSynced} error={order.notionError} />
+          <span style={{ fontSize:10, color:C.light, marginLeft:'auto' }}>
+            {expanded ? '▲ Hide cards' : '▼ Show cards'}
+          </span>
+        </div>
+      </div>
+
+      {/* Expanded card list */}
+      {expanded && (
+        <div style={{ borderTop:`1px solid ${C.border}`, padding:'12px 16px', background:C.bg }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:7, marginBottom:12 }}>
+            {(order.cards || []).map((card, i) => {
+              const svc = SERVICES.find(s => s.id === card.service);
+              return (
+                <div key={i} style={{
+                  background:C.white, border:`1px solid ${C.border}`,
+                  borderRadius:7, padding:'9px 12px',
+                  display:'flex', justifyContent:'space-between', alignItems:'center',
+                }}>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:600, color:C.text }}>
+                      {card.cardName} ({card.year}){card.cardNumber ? ` #${card.cardNumber}` : ''}
+                    </div>
+                    <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
+                      {card.condition} · {svc?.label}
+                    </div>
+                  </div>
+                  <div style={{ fontSize:14, fontWeight:700, color:C.main }}>${svc?.price}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            {canAdvance && (
+              <button type="button" onClick={() => onAdvance(order.id)} style={{
+                flex:1, fontSize:13, padding:'9px 12px', borderRadius:7,
+                background:C.main, color:'#fff', border:'none',
+                fontWeight:600, cursor:'pointer', fontFamily:'inherit',
+                minWidth:120,
+              }}>
+                {STATUS_BTN[order.status]}
+              </button>
+            )}
+            {NOTION_SYNC && !order.notionSynced && (
+              <button type="button" onClick={() => onRetrySync(order.id)} style={{
+                flex:1, fontSize:13, padding:'9px 12px', borderRadius:7,
+                background:C.bg, color:C.muted,
+                border:`1px solid ${C.border}`,
+                cursor:'pointer', fontFamily:'inherit', minWidth:120,
+              }}>
+                ↻ Retry Notion Sync
+              </button>
+            )}
+          </div>
+
+          <div style={{ fontSize:10, color:C.light, marginTop:10 }}>
+            {order.paymentType} · Waiver signed {order.waiverSignedAt
+              ? new Date(order.waiverSignedAt).toLocaleString('en-US')
+              : '—'}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
+// ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  return <Boundary><Main /></Boundary>
+  const [orders, setOrders] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('jm_orders') || '[]'); }
+    catch { return []; }
+  });
+
+  const [tab,       setTab]       = useState('active');
+  const [search,    setSearch]    = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [step,      setStep]      = useState(1);
+  const [form,      setForm]      = useState(emptyForm);
+  const [sigData,   setSigData]   = useState(null);
+  const [errors,    setErrors]    = useState({});
+  const [submitting,setSubmitting]= useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('jm_orders', JSON.stringify(orders));
+  }, [orders]);
+
+  const openModal = () => {
+    setForm(emptyForm());
+    setSigData(null);
+    setErrors({});
+    setStep(1);
+    setShowModal(true);
+  };
+
+  const validate = (s) => {
+    const e = {};
+    if (s === 1) {
+      if (!form.clientName.trim())   e.clientName  = 'Client name is required';
+      if (!form.clientEmail.trim())  e.clientEmail = 'Email is required';
+      else if (!/\S+@\S+\.\S+/.test(form.clientEmail)) e.clientEmail = 'Enter a valid email address';
+      if (!form.clientPhone.trim())  e.clientPhone = 'Phone number is required';
+      if (!form.contactMethod)       e.contactMethod = 'Select a contact method';
+    }
+    if (s === 2) {
+      if (form.cards.length === 0)   e.cards = 'Add at least one card to continue';
+    }
+    if (s === 3) {
+      if (!sigData)                  e.signature = 'Please provide a signature above';
+      if (!form.agreed)              e.agreed    = 'You must agree to the terms to continue';
+    }
+    if (s === 4) {
+      if (!form.paymentType)         e.paymentType = 'Please select a payment method';
+    }
+    return e;
+  };
+
+  const next = () => {
+    const e = validate(step);
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setErrors({});
+    setStep(p => p + 1);
+  };
+
+  const back = () => { setErrors({}); setStep(p => p - 1); };
+
+  const submit = async () => {
+    setSubmitting(true);
+    const newOrder = {
+      id:              genId(orders),
+      clientName:      form.clientName,
+      clientEmail:     form.clientEmail,
+      clientPhone:     form.clientPhone,
+      contactMethod:   form.contactMethod,
+      cards:           form.cards,
+      paymentType:     form.paymentType,
+      signatureDataUrl:sigData,
+      status:          'pending',
+      dateCreated:     new Date().toLocaleDateString('en-US'),
+      waiverSignedAt:  new Date().toISOString(),
+      notionSynced:    false,
+      notionError:     null,
+    };
+
+    // Notion sync: creates/matches the client + creates the batch (real ORD-#)
+    if (NOTION_SYNC) {
+      const result = await syncOrderToNotion(newOrder);
+      newOrder.notionSynced    = result.success;
+      newOrder.notionError     = result.error || null;
+      newOrder.notionCardIds   = result.cardIds || [];
+      newOrder.notionOrderUrls = result.orderUrls || [];
+      newOrder.orderNumber     = result.orderNumber || null;
+
+      // Fire-and-forget: signed waiver PDF → emailed to you + attached to the
+      // client's Notion page. Never blocks or fails the order flow.
+      fetch(`${NOTION_PROXY_URL}/api/send-waiver`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName:  newOrder.clientName,
+          clientEmail: newOrder.clientEmail,
+          notes:       null,
+          signedAt:    newOrder.waiverSignedAt,
+          sigDataUrl:  newOrder.signatureDataUrl,
+        }),
+      }).catch(() => {});
+    }
+
+    setOrders(prev => [newOrder, ...prev]);
+    setSubmitting(false);
+    setShowModal(false);
+  };
+
+  const advance = (id) => setOrders(prev => prev.map(o => {
+    if (o.id !== id) return o;
+    const nextStatus = STATUS_NEXT[o.status] || o.status;
+    // Fire-and-forget: move the batch on the Notion Pipeline board too
+    if (NOTION_SYNC && o.notionOrderUrls?.length) {
+      fetch(`${NOTION_PROXY_URL}/api/update-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderUrls: o.notionOrderUrls, status: nextStatus }),
+      }).catch(() => {});
+    }
+    return { ...o, status: nextStatus };
+  }));
+
+  const retrySync = async (id) => {
+    const order = orders.find(o => o.id === id);
+    if (!order) return;
+    const result = await syncOrderToNotion(order);
+    setOrders(prev => prev.map(o =>
+      o.id !== id ? o
+      : { ...o,
+          notionSynced:    result.success,
+          notionError:     result.error || null,
+          notionCardIds:   result.cardIds || [],
+          notionOrderUrls: result.orderUrls || [],
+          orderNumber:     result.orderNumber || o.orderNumber || null,
+        }
+    ));
+  };
+
+  const filtered = orders.filter(o => {
+    const inTab = tab === 'active' ? o.status !== 'picked_up' : o.status === 'picked_up';
+    const q     = search.toLowerCase();
+    const hit   = !q || [o.clientName, o.id, ...(o.cards||[]).map(c=>c.cardName)]
+      .some(v => (v||'').toLowerCase().includes(q));
+    return inTab && hit;
+  });
+
+  const activeCount    = orders.filter(o => o.status !== 'picked_up').length;
+  const completedCount = orders.filter(o => o.status === 'picked_up').length;
+  const pendingCount   = orders.filter(o => o.status === 'pending').length;
+  const inProgCount    = orders.filter(o => o.status === 'in_progress').length;
+
+  return (
+    <div style={{
+      minHeight:'100vh', background:C.bg,
+      fontFamily:"system-ui,-apple-system,'Segoe UI',sans-serif",
+      maxWidth:500, margin:'0 auto', position:'relative',
+    }}>
+
+      {/* ── Header ── */}
+      <div style={{
+        background:C.secondary, padding:'14px 18px',
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        position:'sticky', top:0, zIndex:100,
+        boxShadow:'0 2px 8px rgba(13,38,21,0.18)',
+      }}>
+        <div>
+          <div style={{
+            fontFamily:"Georgia,'Times New Roman',serif",
+            fontSize:22, fontWeight:700, color:'#ffffff', letterSpacing:'0.02em',
+          }}>
+            Just Mint
+          </div>
+          <div style={{ fontSize:9, color:'rgba(255,255,255,0.5)', letterSpacing:'0.18em', textTransform:'uppercase', marginTop:1 }}>
+            Card Care · Mint condition. Every time.
+          </div>
+        </div>
+        <button type="button" onClick={openModal} style={{
+          background:C.main, color:'#fff', border:'none',
+          padding:'10px 18px', borderRadius:8, fontSize:13,
+          fontWeight:700, cursor:'pointer', fontFamily:'inherit',
+          letterSpacing:'0.02em',
+        }}>
+          + New Order
+        </button>
+      </div>
+
+      {/* ── Tabs ── */}
+      <div style={{ display:'flex', background:C.white, borderBottom:`1px solid ${C.border}`, padding:'0 18px' }}>
+        {[['active','Active Orders',activeCount],['completed','Picked Up',completedCount]].map(([id,label,count]) => (
+          <button key={id} type="button" onClick={() => setTab(id)} style={{
+            padding:'12px 14px', fontSize:13,
+            fontWeight: tab === id ? 700 : 400,
+            color: tab === id ? C.main : C.muted,
+            background:'transparent', border:'none',
+            borderBottom:`2.5px solid ${tab === id ? C.main : 'transparent'}`,
+            cursor:'pointer', fontFamily:'inherit',
+            display:'flex', alignItems:'center', gap:7,
+          }}>
+            {label}
+            <span style={{
+              fontSize:11, padding:'1px 8px', borderRadius:10,
+              background: tab === id ? C.alt : 'transparent',
+              color: tab === id ? C.main : C.light,
+            }}>
+              {count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Search ── */}
+      <div style={{ padding:'12px 16px', background:C.white, borderBottom:`1px solid ${C.border}` }}>
+        <input
+          value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search by client name, card name, or order ID…"
+          style={{ ...IS(), fontSize:14, background:C.bg }}
+        />
+      </div>
+
+      {/* ── Order List ── */}
+      <div style={{ padding:'14px 16px', paddingBottom:100 }}>
+        {filtered.length === 0 ? (
+          <div style={{ textAlign:'center', padding:'60px 20px', color:C.light }}>
+            <div style={{ fontSize:44, marginBottom:14, lineHeight:1 }}>🃏</div>
+            <div style={{ fontSize:14, lineHeight:1.7 }}>
+              {search
+                ? 'No orders match your search.'
+                : tab === 'active'
+                  ? 'No active orders.\nTap + New Order to get started.'
+                  : 'No picked-up orders yet.'}
+            </div>
+          </div>
+        ) : (
+          filtered.map(o => (
+            <OrderCard key={o.id} order={o} onAdvance={advance} onRetrySync={retrySync} />
+          ))
+        )}
+      </div>
+
+      {/* ── Footer Stats ── */}
+      <div style={{
+        position:'sticky', bottom:0,
+        background:C.white, borderTop:`1px solid ${C.border}`,
+        padding:'10px 20px', display:'flex', gap:24, zIndex:90,
+      }}>
+        <div>
+          <div style={{ fontSize:9, color:C.light, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:2 }}>In Progress</div>
+          <div style={{ fontSize:22, fontWeight:800, color:C.main }}>{inProgCount}</div>
+        </div>
+        <div>
+          <div style={{ fontSize:9, color:C.light, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:2 }}>Pending</div>
+          <div style={{ fontSize:22, fontWeight:800, color:'#7a4d00' }}>{pendingCount}</div>
+        </div>
+        <div>
+          <div style={{ fontSize:9, color:C.light, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:2 }}>Total Orders</div>
+          <div style={{ fontSize:22, fontWeight:800, color:C.text }}>{orders.length}</div>
+        </div>
+      </div>
+
+      {/* ── Modal ── */}
+      {showModal && (
+        <div
+          style={{
+            position:'fixed', inset:0,
+            background:'rgba(13,38,21,0.68)',
+            zIndex:200, display:'flex',
+            alignItems:'flex-end', justifyContent:'center',
+          }}
+          onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}
+        >
+          <div style={{
+            background:C.bg, width:'100%', maxWidth:500,
+            maxHeight:'93dvh', borderRadius:'18px 18px 0 0',
+            display:'flex', flexDirection:'column', overflow:'hidden',
+          }}>
+            {/* Modal header */}
+            <div style={{
+              padding:'16px 18px', background:C.white,
+              borderBottom:`1px solid ${C.border}`,
+              display:'flex', alignItems:'center', justifyContent:'space-between',
+              flexShrink:0,
+            }}>
+              <div>
+                <div style={{ fontSize:16, fontWeight:700, color:C.secondary }}>New Order</div>
+                <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>
+                  Step {step} of 5 — {STEP_NAMES[step-1]}
+                </div>
+              </div>
+              <button type="button" onClick={() => setShowModal(false)} style={{
+                background:'transparent', border:'none',
+                fontSize:22, color:C.muted, cursor:'pointer',
+                padding:'4px 8px', lineHeight:1, borderRadius:6,
+              }}>✕</button>
+            </div>
+
+            {/* Progress bar */}
+            <div style={{
+              display:'flex', gap:4, padding:'10px 18px',
+              background:C.white, borderBottom:`1px solid ${C.border}`,
+              flexShrink:0,
+            }}>
+              {STEP_NAMES.map((_, i) => (
+                <div key={i} style={{
+                  flex:1, height:4, borderRadius:2,
+                  background: i < step ? C.main : C.border,
+                  transition:'background 0.2s',
+                }} />
+              ))}
+            </div>
+
+            {/* Modal body */}
+            <div style={{
+              flex:1, overflowY:'auto', padding:'20px 18px',
+              WebkitOverflowScrolling:'touch',
+            }}>
+              {step === 1 && <StepClientInfo form={form} setForm={setForm} errors={errors} />}
+              {step === 2 && <StepCards      form={form} setForm={setForm} errors={errors} />}
+              {step === 3 && <StepWaiver     form={form} setForm={setForm} sigData={sigData} setSigData={setSigData} errors={errors} />}
+              {step === 4 && <StepPayment    form={form} setForm={setForm} errors={errors} />}
+              {step === 5 && <StepSignOff    form={form} />}
+            </div>
+
+            {/* Modal footer */}
+            <div style={{
+              padding:'14px 18px', background:C.white,
+              borderTop:`1px solid ${C.border}`,
+              display:'flex', gap:10, flexShrink:0,
+            }}>
+              {step > 1 && (
+                <button type="button" onClick={back} style={{
+                  flex:1, padding:'13px', borderRadius:8, fontSize:14,
+                  background:C.bg, border:`1.5px solid ${C.border}`,
+                  color:C.text, cursor:'pointer', fontFamily:'inherit', fontWeight:500,
+                }}>Back</button>
+              )}
+              {step < 5 ? (
+                <button type="button" onClick={next} style={{
+                  flex:2, padding:'13px', borderRadius:8, fontSize:15,
+                  fontWeight:700, background:C.main, border:'none',
+                  color:'#fff', cursor:'pointer', fontFamily:'inherit',
+                }}>Continue</button>
+              ) : (
+                <button type="button" onClick={submit} disabled={submitting} style={{
+                  flex:2, padding:'13px', borderRadius:8, fontSize:15,
+                  fontWeight:700, background: submitting ? C.light : C.secondary,
+                  border:'none', color:'#fff', cursor: submitting ? 'not-allowed' : 'pointer',
+                  fontFamily:'inherit', letterSpacing:'0.02em',
+                }}>
+                  {submitting ? 'Saving…' : 'Approve & Begin Service'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

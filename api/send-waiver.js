@@ -2,14 +2,16 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import nodemailer from 'nodemailer'
 import { Client as NotionClient } from '@notionhq/client'
 
-const CLIENT_DB = '334bc09b-53ce-80a9-82ec-000b8cffc130'
+// NEW SYSTEM — Clients database under "Card Restoration HQ"
+const CLIENT_DB = '1292d2fb-cf2d-4e0c-b2d3-7d5ed07335e8'
+const NOTION_VERSION = '2025-09-03' // for raw file-upload calls
 
 // ── Matches App.jsx exactly ───────────────────────────────────────────────────
 const SERVICES = [
   { name: 'Clean + Polish',                price: '$8',  note: 'Surface clean, holo polish' },
   { name: 'Edge & Corner Lift Correction', price: '$30', note: 'includes Clean + Polish' },
-  { name: 'Dent Correction',               price: '$40', note: 'includes Clean + Polish' },
-  { name: 'Crease Correction',             price: '$50', note: 'includes Clean + Polish' },
+  { name: 'Dent Correction',               price: '$50', note: 'includes Clean + Polish' },
+  { name: 'Crease Correction',             price: '$70', note: 'includes Clean + Polish' },
 ]
 
 const SECTIONS = [
@@ -60,18 +62,18 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { clientName, notes, signedAt, sigDataUrl } = req.body || {}
+  const { clientName, clientEmail, notes, signedAt, sigDataUrl } = req.body || {}
 
   if (!clientName || !signedAt) {
     return res.status(400).json({ error: 'Missing clientName or signedAt' })
   }
 
   try {
-    const pdfBytes = await buildPDF({ clientName, notes, signedAt, sigDataUrl })
+    const pdfBytes = await buildPDF({ clientName, clientEmail, notes, signedAt, sigDataUrl })
 
     await Promise.allSettled([
-      sendEmail({ clientName, notes, signedAt, pdfBytes }),
-      syncToNotion({ clientName, notes, signedAt }),
+      sendEmail({ clientName, clientEmail, notes, signedAt, pdfBytes }),
+      syncToNotion({ clientName, clientEmail, notes, signedAt, pdfBytes }),
     ])
 
     return res.status(200).json({ ok: true })
@@ -82,7 +84,7 @@ export default async function handler(req, res) {
 }
 
 // ── PDF builder ───────────────────────────────────────────────────────────────
-async function buildPDF({ clientName, notes, signedAt, sigDataUrl }) {
+async function buildPDF({ clientName, clientEmail, notes, signedAt, sigDataUrl }) {
   const doc   = await PDFDocument.create()
   const font  = await doc.embedFont(StandardFonts.Helvetica)
   const bold  = await doc.embedFont(StandardFonts.HelveticaBold)
@@ -151,7 +153,7 @@ async function buildPDF({ clientName, notes, signedAt, sigDataUrl }) {
     year: 'numeric', month: 'long', day: 'numeric',
     hour: '2-digit', minute: '2-digit',
   })
-  const boxRows = 2 + (notes ? 1 : 0)
+  const boxRows = 2 + (clientEmail ? 1 : 0) + (notes ? 1 : 0)
   const boxH    = boxRows * 22 + 24
   page.drawRectangle({
     x: M, y: y - boxH, width: CW, height: boxH,
@@ -161,6 +163,11 @@ async function buildPDF({ clientName, notes, signedAt, sigDataUrl }) {
   y -= 16
   page.drawText('Client', { x: M + 12, y, size: 10, font, color: muted })
   page.drawText(clientName, { x: M + 80, y, size: 12, font: bold, color: body })
+  if (clientEmail) {
+    y -= 22
+    page.drawText('Email', { x: M + 12, y, size: 10, font, color: muted })
+    page.drawText(clientEmail, { x: M + 80, y, size: 11, font, color: body })
+  }
   y -= 22
   page.drawText('Signed', { x: M + 12, y, size: 10, font, color: muted })
   page.drawText(signedDate, { x: M + 80, y, size: 11, font, color: body })
@@ -237,7 +244,7 @@ async function buildPDF({ clientName, notes, signedAt, sigDataUrl }) {
 }
 
 // ── Email sender ──────────────────────────────────────────────────────────────
-async function sendEmail({ clientName, notes, signedAt, pdfBytes }) {
+async function sendEmail({ clientName, clientEmail, notes, signedAt, pdfBytes }) {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -259,6 +266,7 @@ async function sendEmail({ clientName, notes, signedAt, pdfBytes }) {
         <div style="height:4px;background:linear-gradient(90deg,#008922,#206100);margin-bottom:20px"></div>
         <h2 style="color:#206100;margin:0 0 16px">New Waiver Signed</h2>
         <p><strong>Client:</strong> ${clientName}</p>
+        ${clientEmail ? `<p><strong>Email:</strong> ${clientEmail}</p>` : ''}
         <p><strong>Signed:</strong> ${signedDate}</p>
         ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
         <p style="color:#4a7a58;margin-top:20px">The signed PDF waiver is attached.</p>
@@ -274,23 +282,100 @@ async function sendEmail({ clientName, notes, signedAt, pdfBytes }) {
   })
 }
 
-// ── Notion sync ───────────────────────────────────────────────────────────────
-async function syncToNotion({ clientName, notes, signedAt }) {
+// ── Notion sync (NEW SYSTEM) ──────────────────────────────────────────────────
+// Finds the client by email (creates them if new), records the signature
+// date/time, and attaches the signed PDF to their "Signed PDF" property.
+async function syncToNotion({ clientName, clientEmail, notes, signedAt, pdfBytes }) {
   if (!process.env.NOTION_TOKEN) return
 
-  const notion     = new NotionClient({ auth: process.env.NOTION_TOKEN })
-  const intakeDate = new Date(signedAt).toISOString().split('T')[0]
+  const notion = new NotionClient({ auth: process.env.NOTION_TOKEN })
 
-  await notion.pages.create({
-    parent: { database_id: CLIENT_DB },
-    properties: {
-      'Name':           { title: [{ text: { content: clientName } }] },
-      'Date Intake':    { date: { start: intakeDate } },
-      'Risk Agreement': { checkbox: true },
-      'Intake Complete':{ checkbox: false },
-      ...(notes && {
-        'Contact Info': { rich_text: [{ text: { content: notes } }] },
-      }),
-    },
+  // 1. Find existing client by email (fallback: exact name match)
+  const filter = clientEmail
+    ? { property: 'Email', email: { equals: clientEmail } }
+    : { property: 'Name', title: { equals: clientName } }
+
+  const found = await notion.databases.query({
+    database_id: CLIENT_DB,
+    filter,
+    page_size: 1,
   })
+
+  let pageId
+  if (found.results.length) {
+    // Returning client — just refresh the signature date
+    pageId = found.results[0].id
+    await notion.pages.update({
+      page_id: pageId,
+      properties: {
+        'Signature Date': { date: { start: signedAt } },
+        'Vite Synced':    { checkbox: true },
+      },
+    })
+  } else {
+    const page = await notion.pages.create({
+      parent: { database_id: CLIENT_DB },
+      properties: {
+        'Name':           { title: [{ text: { content: clientName } }] },
+        ...(clientEmail && { 'Email': { email: clientEmail } }),
+        'Status':         { select: { name: 'Active' } },
+        'Source':         { select: { name: 'Vite Form' } },
+        'Vite Synced':    { checkbox: true },
+        'Signature Date': { date: { start: signedAt } },
+        ...(notes && {
+          'Notes': { rich_text: [{ text: { content: notes.slice(0, 1900) } }] },
+        }),
+      },
+    })
+    pageId = page.id
+  }
+
+  // 2. Attach the signed PDF to the client's page (best-effort — never
+  //    fails the waiver flow if the upload hiccups)
+  try {
+    await attachPdfToClient(pageId, pdfBytes, `JustMint_Waiver_${clientName.replace(/\s+/g, '_')}.pdf`)
+  } catch (e) {
+    console.error('[send-waiver] PDF attach skipped:', e.message)
+  }
+}
+
+// Uploads the PDF via Notion's File Upload API (raw fetch — SDK v2 lacks it),
+// then sets it on the client's "Signed PDF" property.
+async function attachPdfToClient(pageId, pdfBytes, filename) {
+  const headers = {
+    Authorization: `Bearer ${process.env.NOTION_TOKEN}`,
+    'Notion-Version': NOTION_VERSION,
+  }
+
+  // Step 1 — create the upload slot
+  const created = await fetch('https://api.notion.com/v1/file_uploads', {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: 'single_part', filename, content_type: 'application/pdf' }),
+  }).then(r => r.json())
+  if (!created.id) throw new Error(created.message || 'file upload creation failed')
+
+  // Step 2 — send the bytes
+  const form = new FormData()
+  form.append('file', new Blob([Buffer.from(pdfBytes)], { type: 'application/pdf' }), filename)
+  const sent = await fetch(`https://api.notion.com/v1/file_uploads/${created.id}/send`, {
+    method: 'POST',
+    headers, // no Content-Type — FormData sets its own boundary
+    body: form,
+  }).then(r => r.json())
+  if (sent.status && sent.status !== 'uploaded') throw new Error(sent.message || 'file upload send failed')
+
+  // Step 3 — attach to the page property
+  const patched = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+    method: 'PATCH',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      properties: {
+        'Signed PDF': {
+          files: [{ type: 'file_upload', file_upload: { id: created.id }, name: filename }],
+        },
+      },
+    }),
+  }).then(r => r.json())
+  if (patched.object === 'error') throw new Error(patched.message)
 }
