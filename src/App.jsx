@@ -497,11 +497,8 @@ function StepAgreement({ waiverRead, onReadToEnd, errors }) {
           WebkitOverflowScrolling:'touch', boxShadow:'0 1px 4px rgba(13,60,30,0.04)',
         }}>
           <div style={{ textAlign:'center', marginBottom:16 }}>
-            <div style={{ fontWeight:700, fontSize:14, color:C.secondary, fontFamily:"Georgia, serif" }}>
-              JUST MINT TCG — Card Cleaning Co.
-            </div>
-            <div style={{ fontSize:11, fontStyle:'italic', color:C.muted, marginTop:2 }}>
-              Mint condition. Every time.
+            <div style={{ fontWeight:800, fontSize:15, color:C.secondary }}>
+              Just Mint Card Care
             </div>
             <div style={{ fontSize:11, color:C.light, marginTop:4 }}>
               Minneapolis, Minnesota · Version 1.0 · Effective 4/29/2026
@@ -802,6 +799,42 @@ export default function App() {
     localStorage.setItem('jm_drafts', JSON.stringify(drafts));
   }, [drafts]);
 
+  // ── Two-way sync: pull statuses back from Notion ──────────────────────────
+  // Notion is the source of truth. Runs on load, on returning to the tab,
+  // and every 60 seconds. Only orders that synced to Notion are affected.
+  useEffect(() => {
+    if (!NOTION_SYNC) return;
+    let stopped = false;
+
+    const pull = async () => {
+      try {
+        const res = await fetch(`${NOTION_PROXY_URL}/api/orders`);
+        if (!res.ok) return;
+        const remote = await res.json();
+        if (stopped || !Array.isArray(remote)) return;
+        const byId = Object.fromEntries(remote.map(r => [r.pageId, r]));
+        setOrders(prev => prev.map(o => {
+          const pid = (o.notionOrderUrls?.[0] || '')
+            .replace(/-/g, '').match(/([a-f0-9]{32})/i)?.[1];
+          const r = pid ? byId[pid] : null;
+          if (!r || !r.appStatus) return o;
+          if (r.appStatus === o.status && (o.orderNumber || !r.orderNumber)) return o;
+          return { ...o, status: r.appStatus, orderNumber: o.orderNumber || r.orderNumber };
+        }));
+      } catch { /* offline or cold function — try again next cycle */ }
+    };
+
+    pull();
+    const interval = setInterval(pull, 60000);
+    const onFocus = () => pull();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
+
   const openModal = () => {
     setForm(emptyForm());
     setSigData(null);
@@ -996,12 +1029,10 @@ export default function App() {
           </div>
           <div>
             <div style={{
-              fontSize:21, fontWeight:800, color:'#ffffff', letterSpacing:'-0.01em',
+              fontSize:20, fontWeight:800, color:'#ffffff',
+              letterSpacing:'-0.02em', lineHeight:1.15,
             }}>
-              Just Mint
-            </div>
-            <div style={{ fontSize:9, color:'rgba(255,255,255,0.55)', letterSpacing:'0.18em', textTransform:'uppercase', marginTop:1 }}>
-              Card Care · Mint condition. Every time.
+              Just Mint <span style={{ color:'#9FE8B4', fontWeight:700 }}>Card Care</span>
             </div>
           </div>
         </div>
