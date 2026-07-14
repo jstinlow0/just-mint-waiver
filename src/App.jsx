@@ -54,7 +54,7 @@ const SERVICES = [
 const CONDITIONS      = ['NM','LP','MP','HP','DMG'];
 const CONTACT_METHODS = ['Email','Text','Facebook','Instagram'];
 const PAYMENT_TYPES   = ['Cash','PayPal','Venmo','Zelle'];
-const STEP_NAMES      = ['Client Info','Cards','Agreement','Signature','Payment','Sign Off'];
+const STEP_NAMES      = ['Client Info','Cards','Agreement','Sign & Pay','Sign Off'];
 
 // Status flow: Pending → In Progress → Complete → Picked Up
 const STATUS_NEXT = {
@@ -545,12 +545,12 @@ function StepAgreement({ waiverRead, onReadToEnd, errors }) {
   );
 }
 
-// ─── Step 4: Signature ────────────────────────────────────────────────────────
+// ─── Step 4: Signature & Payment ──────────────────────────────────────────────
 function StepSignature({ form, setForm, sigData, setSigData, errors }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
       <p style={{ fontSize:14, color:C.muted, margin:0, lineHeight:1.6 }}>
-        You've read the Service Agreement. Sign below to accept it.
+        You've read the Service Agreement. Sign below to accept it, then choose the payment method.
       </p>
       <div>
         <label style={LS}>Client Signature *</label>
@@ -570,40 +570,34 @@ function StepSignature({ form, setForm, sigData, setSigData, errors }) {
         </span>
       </label>
       <Err m={errors.agreed} />
-    </div>
-  );
-}
 
-// ─── Step 4: Payment ──────────────────────────────────────────────────────────
-function StepPayment({ form, setForm, errors }) {
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-      <p style={{ fontSize:14, color:C.muted, margin:0 }}>
-        Select the payment method used for this order:
-      </p>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-        {PAYMENT_TYPES.map(pt => {
-          const active = form.paymentType === pt;
-          return (
-            <button key={pt} type="button"
-              onClick={() => setForm(p => ({ ...p, paymentType:pt }))}
-              style={{
-                padding:'22px 12px', borderRadius:18, cursor:'pointer',
-                fontSize:15, fontFamily:'inherit',
-                fontWeight: active ? 700 : 500,
-                border:`2px solid ${active ? C.main : 'transparent'}`,
-                background: active ? C.alt : C.white,
-                color: active ? C.main : C.text,
-                boxShadow: active ? SHADOW_CTA : SHADOW_CARD,
-                transition:'all 0.15s',
-              }}
-            >
-              {pt}
-            </button>
-          );
-        })}
+      {/* Payment method — merged into this step */}
+      <div style={{ marginTop:4 }}>
+        <label style={LS}>Payment Method *</label>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          {PAYMENT_TYPES.map(pt => {
+            const active = form.paymentType === pt;
+            return (
+              <button key={pt} type="button"
+                onClick={() => setForm(p => ({ ...p, paymentType:pt }))}
+                style={{
+                  padding:'16px 12px', borderRadius:16, cursor:'pointer',
+                  fontSize:15, fontFamily:'inherit',
+                  fontWeight: active ? 700 : 500,
+                  border:`2px solid ${active ? C.main : 'transparent'}`,
+                  background: active ? C.alt : C.white,
+                  color: active ? C.main : C.text,
+                  boxShadow: active ? SHADOW_CTA : SHADOW_CARD,
+                  transition:'all 0.15s',
+                }}
+              >
+                {pt}
+              </button>
+            );
+          })}
+        </div>
+        <Err m={errors.paymentType} />
       </div>
-      <Err m={errors.paymentType} />
     </div>
   );
 }
@@ -840,7 +834,8 @@ export default function App() {
     setSigData(d.sigData || null);
     setWaiverRead(!!d.waiverRead);
     setErrors({});
-    setStep(d.step || 1);
+    // Clamp in case a draft was saved under an older step layout
+    setStep(Math.min(d.step || 1, STEP_NAMES.length));
     setCardFormOpen(false);
     setActiveDraftId(d.draftId);
     setShowModal(true);
@@ -867,8 +862,6 @@ export default function App() {
     if (s === 4) {
       if (!sigData)                  e.signature = 'Please provide a signature above';
       if (!form.agreed)              e.agreed    = 'You must agree to the terms to continue';
-    }
-    if (s === 5) {
       if (!form.paymentType)         e.paymentType = 'Please select a payment method';
     }
     return e;
@@ -1199,8 +1192,7 @@ export default function App() {
               {step === 2 && <StepCards      form={form} setForm={setForm} errors={errors} onFormOpenChange={setCardFormOpen} />}
               {step === 3 && <StepAgreement  waiverRead={waiverRead} onReadToEnd={() => setWaiverRead(true)} errors={errors} />}
               {step === 4 && <StepSignature  form={form} setForm={setForm} sigData={sigData} setSigData={setSigData} errors={errors} />}
-              {step === 5 && <StepPayment    form={form} setForm={setForm} errors={errors} />}
-              {step === 6 && <StepSignOff    form={form} />}
+              {step === 5 && <StepSignOff    form={form} />}
             </div>
 
             {/* Modal footer */}
@@ -1216,7 +1208,7 @@ export default function App() {
                   color:C.text, cursor:'pointer', fontFamily:'inherit', fontWeight:600,
                 }}>Back</button>
               )}
-              {step < 6 ? (
+              {step < 5 ? (
                 <button type="button" onClick={next} disabled={step === 3 && !waiverRead} style={{
                   flex:2, padding:'15px', borderRadius:999, fontSize:15,
                   fontWeight:800,

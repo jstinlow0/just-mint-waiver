@@ -1,63 +1,109 @@
 // scripts/create-cards-db.mjs
-// One-time setup: creates the JMCC "Cards" database in Notion.
+// ─────────────────────────────────────────────────────────────────────────────
+// ⚠️  YOU PROBABLY DON'T NEED TO RUN THIS.
 //
-// Run once from Codespaces (or anywhere with the env vars set):
-//   NOTION_TOKEN=ntn_xxx NOTION_PARENT_PAGE_ID=<page id> node scripts/create-cards-db.mjs
+// The Cards database ALREADY EXISTS in the new "Card Restoration HQ" page:
 //
-// NOTION_PARENT_PAGE_ID = a Notion PAGE you own (the DB will be created inside it).
-// Copy it from the page URL: the 32-char hex string at the end.
+//   CARDS_DB_ID = f38bd223-1bef-47f1-b23e-1521ef70ddc4
 //
-// After it runs, it prints the new Cards database ID. Put that in Vercel as
-// the CARDS_DB_ID env var.
+// api/sync-card.js already has that ID built in, so no env var is required.
+// This script exists only as a rebuild tool: if the Cards database is ever
+// deleted, running this recreates it with the exact same schema, pointed at
+// the NEW system's databases.
+//
+// It is safe by default: it checks whether the existing Cards DB is still
+// reachable and refuses to create a duplicate unless you pass --force.
+//
+// Run (only if rebuilding):
+//   NOTION_TOKEN=ntn_xxx NOTION_PARENT_PAGE_ID=<HQ page id> node scripts/create-cards-db.mjs --force
+//
+// NOTION_PARENT_PAGE_ID for Card Restoration HQ: 39dbc09b53ce81abae86e5630229979d
+// ─────────────────────────────────────────────────────────────────────────────
 
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
-const PARENT_PAGE_ID = process.env.NOTION_PARENT_PAGE_ID;
+const PARENT_PAGE_ID = process.env.NOTION_PARENT_PAGE_ID || '39dbc09b53ce81abae86e5630229979d';
 
-// Existing JMCC databases (from project memory)
-const CLIENT_DB_ID = '334bc09b-53ce-80a9-82ec-000b8cffc130';
-const CARD_ORDERS_DB_ID = '334bc09b-53ce-8026-a631-000b683d4ef9';
-const SIGNED_WAIVERS_DB_ID = '4e2e71c7-c056-421c-a58a-66914158dc7c';
+// ── NEW SYSTEM databases (Card Restoration HQ) ───────────────────────────────
+const EXISTING_CARDS_DB_ID = 'f38bd223-1bef-47f1-b23e-1521ef70ddc4';
+const CLIENTS_DB_ID        = '1292d2fb-cf2d-4e0c-b2d3-7d5ed07335e8'; // Clients
+const BATCHES_DB_ID        = '378f4ca1-a2ac-4403-8456-7be887514e68'; // Restoration Batches
 
 const NOTION_VERSION = '2026-03-11';
 
-if (!NOTION_TOKEN || !PARENT_PAGE_ID) {
-  console.error('Missing env: NOTION_TOKEN and NOTION_PARENT_PAGE_ID are required.');
+if (!NOTION_TOKEN) {
+  console.error('Missing env: NOTION_TOKEN is required.');
   process.exit(1);
 }
 
+const headers = {
+  Authorization: `Bearer ${NOTION_TOKEN}`,
+  'Content-Type': 'application/json',
+  'Notion-Version': NOTION_VERSION,
+};
+
+// ── Safety check: does the Cards DB already exist? ───────────────────────────
+const check = await fetch(`https://api.notion.com/v1/databases/${EXISTING_CARDS_DB_ID}`, { headers });
+if (check.ok) {
+  console.log('✓ Cards database already exists and is reachable.');
+  console.log('  CARDS_DB_ID =', EXISTING_CARDS_DB_ID);
+  if (!process.argv.includes('--force')) {
+    console.log('\nNothing to do. (Pass --force to create a fresh copy anyway.)');
+    process.exit(0);
+  }
+  console.log('\n--force passed — creating a fresh copy…');
+}
+
+// ── Create (schema matches the existing Cards DB in Card Restoration HQ) ─────
 const body = {
   parent: { type: 'page_id', page_id: PARENT_PAGE_ID },
   title: [{ type: 'text', text: { content: 'Cards' } }],
   properties: {
     'Card Name': { title: {} },
-    'Order':  { relation: { database_id: CARD_ORDERS_DB_ID, single_property: {} } },
-    'Client': { relation: { database_id: CLIENT_DB_ID, single_property: {} } },
+    'Order':  { relation: { database_id: BATCHES_DB_ID, single_property: {} } },
+    'Client': { relation: { database_id: CLIENTS_DB_ID, single_property: {} } },
     'Status': {
       select: {
         options: [
           { name: 'Intake',          color: 'gray'   },
-          { name: 'Cleaning & Prep', color: 'yellow' },
+          { name: 'Cleaning & Prep', color: 'blue'   },
           { name: 'Done',            color: 'green'  },
-          { name: 'Returned',        color: 'blue'   },
+          { name: 'Returned',        color: 'purple' },
+        ],
+      },
+    },
+    'Service': {
+      select: {
+        options: [
+          { name: 'Clean + Polish', color: 'green'  },
+          { name: 'Lift',           color: 'blue'   },
+          { name: 'Dent',           color: 'orange' },
+          { name: 'Crease',         color: 'red'    },
+        ],
+      },
+    },
+    'Condition (Before)': {
+      select: {
+        options: [
+          { name: 'NM',  color: 'green'  },
+          { name: 'LP',  color: 'yellow' },
+          { name: 'MP',  color: 'orange' },
+          { name: 'HP',  color: 'red'    },
+          { name: 'DMG', color: 'gray'   },
         ],
       },
     },
     'Notes':  { rich_text: {} },
     'Photos': { files: {} },
     'Created': { created_time: {} },
-    // ── Phase 2 seam: waiver attachment ──────────────────────────────────────
-    // Relation in place now so wiring the signed-waiver PDF later is trivial.
-    'Waiver': { relation: { database_id: SIGNED_WAIVERS_DB_ID, single_property: {} } },
+    // NOTE: the old 'Waiver' relation is gone on purpose — the new system
+    // attaches the signed PDF directly to the Client page ("Signed PDF"
+    // property) via api/send-waiver.js, so no separate waivers DB is needed.
   },
 };
 
 const res = await fetch('https://api.notion.com/v1/databases', {
   method: 'POST',
-  headers: {
-    Authorization: `Bearer ${NOTION_TOKEN}`,
-    'Content-Type': 'application/json',
-    'Notion-Version': NOTION_VERSION,
-  },
+  headers,
   body: JSON.stringify(body),
 });
 
@@ -69,5 +115,5 @@ if (!res.ok) {
 }
 
 console.log('✓ Cards database created.');
-console.log('  CARDS_DB_ID =', data.id);
-console.log('\nNext: add CARDS_DB_ID to your Vercel project env vars.');
+console.log('  New CARDS_DB_ID =', data.id);
+console.log('\nNext: set CARDS_DB_ID in Vercel env vars so api/sync-card.js uses the new copy.');
