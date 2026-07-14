@@ -7,19 +7,39 @@ import { useState, useEffect, useRef } from "react";
 const NOTION_SYNC = true;
 const NOTION_PROXY_URL = ""; // empty = same origin
 
-// ─── Brand Palette ───────────────────────────────────────────────────────────
+// ─── Brand Palette & Design Tokens ────────────────────────────────────────────
 const C = {
-  bg:       '#F4FBF6',
+  bg:       '#F1FAF3',
   white:    '#ffffff',
-  alt:      '#eaf7ef',
+  alt:      '#EDF8F0',
   main:     '#008922',
   secondary:'#206100',
-  border:   '#b8dfc4',
-  text:     '#0d2615',
-  muted:    '#3a6647',
-  light:    '#7aaa83',
+  border:   '#DCEEE1',
+  text:     '#12291A',
+  muted:    '#4E7A5C',
+  light:    '#8FB89B',
   danger:   '#b91c1c',
 };
+
+// Soft green gradient used as the app background
+const GRAD     = 'linear-gradient(168deg,#F3FBF5 0%,#E3F4E8 48%,#D2ECDC 100%)';
+// High-contrast CTA gradient for primary buttons
+const CTA_GRAD = 'linear-gradient(135deg,#00A22C 0%,#008922 60%,#0A6B22 100%)';
+// Shadows
+const SHADOW_CARD = '0 6px 22px rgba(13,60,30,0.08)';
+const SHADOW_CTA  = '0 6px 16px rgba(0,137,34,0.30)';
+
+// Minimal leaf motif used across the app
+function Leaf({ size = 16, color = C.main }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M20 4c-8.5 0-14 4.5-14 11 0 2.2.7 4 1.6 5.1C9.3 15 13 11.5 17 9.5c-3.4 2.7-6.7 6.2-8.3 10.2.9.4 1.9.6 2.8.6C18 20.3 20 12 20 4z"
+        fill={color}
+      />
+    </svg>
+  );
+}
 
 // ─── Static Data ─────────────────────────────────────────────────────────────
 // Service IDs match Notion "Service Type" select options exactly
@@ -34,7 +54,7 @@ const SERVICES = [
 const CONDITIONS      = ['NM','LP','MP','HP','DMG'];
 const CONTACT_METHODS = ['Email','Text','Facebook','Instagram'];
 const PAYMENT_TYPES   = ['Cash','PayPal','Venmo','Zelle'];
-const STEP_NAMES      = ['Client Info','Cards','Waiver','Payment','Sign Off'];
+const STEP_NAMES      = ['Client Info','Cards','Agreement','Signature','Payment','Sign Off'];
 
 // Status flow: Pending → In Progress → Complete → Picked Up
 const STATUS_NEXT = {
@@ -117,15 +137,16 @@ async function syncOrderToNotion(order) {
 
 // ─── Shared Styles ────────────────────────────────────────────────────────────
 const IS = (err) => ({
-  width:'100%', padding:'10px 12px', borderRadius:8, boxSizing:'border-box',
+  width:'100%', padding:'13px 16px', borderRadius:14, boxSizing:'border-box',
   border:`1.5px solid ${err ? C.danger : C.border}`,
   background:C.white, color:C.text, fontSize:15, fontFamily:'inherit',
   outline:'none', WebkitAppearance:'none', appearance:'none',
+  boxShadow:'0 1px 4px rgba(13,60,30,0.04)',
 });
 
 const LS = {
-  fontSize:11, fontWeight:700, color:C.muted, marginBottom:5,
-  display:'block', letterSpacing:'0.07em', textTransform:'uppercase',
+  fontSize:12, fontWeight:700, color:C.muted, marginBottom:7,
+  display:'block', letterSpacing:'0.05em', textTransform:'uppercase',
 };
 
 // ─── Micro Components ─────────────────────────────────────────────────────────
@@ -144,7 +165,7 @@ function StatusBadge({ status }) {
   const s = map[status] || map.pending;
   return (
     <span style={{
-      fontSize:10, padding:'3px 10px', borderRadius:3,
+      fontSize:10, padding:'4px 12px', borderRadius:999,
       fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase',
       background:s.bg, color:s.color,
     }}>
@@ -157,7 +178,7 @@ function NotionSyncBadge({ synced, error }) {
   if (!NOTION_SYNC) return null;
   return (
     <span style={{
-      fontSize:9, padding:'2px 8px', borderRadius:3,
+      fontSize:9, padding:'3px 10px', borderRadius:999,
       fontWeight:600, letterSpacing:'0.06em',
       background: synced ? 'rgba(0,137,34,0.08)' : 'rgba(185,28,28,0.08)',
       color: synced ? C.main : C.danger,
@@ -222,8 +243,9 @@ function SignaturePad({ onDataChange }) {
           ref={canvasRef}
           style={{
             display:'block', width:'100%', height:'150px',
-            borderRadius:8, border:`1.5px solid ${C.border}`,
+            borderRadius:16, border:`1.5px solid ${C.border}`,
             background:C.white, touchAction:'none', cursor:'crosshair',
+            boxShadow:'0 1px 4px rgba(13,60,30,0.04)',
           }}
           onMouseDown={startDraw}   onMouseMove={doDraw}
           onMouseUp={endDraw}       onMouseLeave={endDraw}
@@ -231,8 +253,8 @@ function SignaturePad({ onDataChange }) {
         />
         <button type="button" onClick={clearPad} style={{
           position:'absolute', top:8, right:8, fontSize:11,
-          padding:'4px 12px', borderRadius:5,
-          background:'rgba(255,255,255,0.92)',
+          padding:'5px 14px', borderRadius:999,
+          background:'rgba(255,255,255,0.94)',
           border:`1px solid ${C.border}`, color:C.muted, cursor:'pointer',
         }}>Clear</button>
       </div>
@@ -276,10 +298,13 @@ function StepClientInfo({ form, setForm, errors }) {
 }
 
 // ─── Step 2: Cards (Batch) ────────────────────────────────────────────────────
-function StepCards({ form, setForm, errors }) {
+function StepCards({ form, setForm, errors, onFormOpenChange }) {
   const [draft,    setDraft]    = useState(emptyCard());
   const [adding,   setAdding]   = useState(form.cards.length === 0);
   const [draftErr, setDraftErr] = useState({});
+
+  // Tell the parent whether a card entry is in progress — blocks Continue
+  useEffect(() => { onFormOpenChange?.(adding); }, [adding, onFormOpenChange]);
 
   const df = (k) => (e) => setDraft(p => ({ ...p, [k]:e.target.value }));
 
@@ -314,9 +339,9 @@ function StepCards({ form, setForm, errors }) {
       {/* Empty state */}
       {form.cards.length === 0 && !adding && (
         <div style={{
-          textAlign:'center', padding:'28px 20px',
+          textAlign:'center', padding:'30px 20px',
           color:C.muted, fontSize:13, lineHeight:1.6,
-          background:C.alt, borderRadius:10, border:`1px dashed ${C.border}`,
+          background:'rgba(255,255,255,0.65)', borderRadius:18, border:`1.5px dashed ${C.border}`,
         }}>
           No cards added yet.<br />
           Tap <strong>+ Add Card</strong> below to start your batch.
@@ -328,8 +353,8 @@ function StepCards({ form, setForm, errors }) {
         const svc = svcFor(card.service);
         return (
           <div key={i} style={{
-            background:C.white, border:`1px solid ${C.border}`,
-            borderRadius:10, padding:'12px 14px',
+            background:C.white, border:'none', boxShadow:SHADOW_CARD,
+            borderRadius:16, padding:'14px 16px',
             display:'flex', justifyContent:'space-between', alignItems:'center',
             gap:10,
           }}>
@@ -344,8 +369,8 @@ function StepCards({ form, setForm, errors }) {
             </div>
             <button type="button" onClick={() => removeCard(i)} style={{
               background:'transparent', border:`1px solid ${C.border}`,
-              borderRadius:6, color:C.danger, fontSize:18, lineHeight:1,
-              padding:'4px 10px', cursor:'pointer', flexShrink:0,
+              borderRadius:999, color:C.danger, fontSize:18, lineHeight:1,
+              padding:'4px 11px', cursor:'pointer', flexShrink:0,
             }}>×</button>
           </div>
         );
@@ -355,8 +380,8 @@ function StepCards({ form, setForm, errors }) {
       {adding && (
         <div style={{
           background:C.white, border:`1.5px solid ${C.main}`,
-          borderRadius:10, padding:'16px 14px',
-          display:'flex', flexDirection:'column', gap:12,
+          borderRadius:18, padding:'18px 16px', boxShadow:SHADOW_CARD,
+          display:'flex', flexDirection:'column', gap:14,
         }}>
           <div style={{ fontSize:12, fontWeight:700, color:C.main, textTransform:'uppercase', letterSpacing:'0.07em' }}>
             {form.cards.length > 0 ? `Card ${form.cards.length + 1}` : 'Card Details'}
@@ -411,15 +436,16 @@ function StepCards({ form, setForm, errors }) {
           <div style={{ display:'flex', gap:8 }}>
             {form.cards.length > 0 && (
               <button type="button" onClick={() => { setAdding(false); setDraftErr({}); setDraft(emptyCard()); }} style={{
-                flex:1, padding:'11px', borderRadius:8, fontSize:14,
-                background:C.bg, border:`1.5px solid ${C.border}`,
-                color:C.text, cursor:'pointer', fontFamily:'inherit',
+                flex:1, padding:'13px', borderRadius:999, fontSize:14,
+                background:C.white, border:`1.5px solid ${C.border}`,
+                color:C.text, cursor:'pointer', fontFamily:'inherit', fontWeight:600,
               }}>Cancel</button>
             )}
             <button type="button" onClick={addCard} style={{
-              flex:2, padding:'11px', borderRadius:8, fontSize:14,
-              fontWeight:700, background:C.main, border:'none',
+              flex:2, padding:'13px', borderRadius:999, fontSize:14,
+              fontWeight:700, background:CTA_GRAD, border:'none',
               color:'#fff', cursor:'pointer', fontFamily:'inherit',
+              boxShadow:SHADOW_CTA,
             }}>Add Card</button>
           </div>
         </div>
@@ -428,9 +454,9 @@ function StepCards({ form, setForm, errors }) {
       {/* Add another button */}
       {!adding && (
         <button type="button" onClick={() => setAdding(true)} style={{
-          width:'100%', padding:'13px', borderRadius:8, fontSize:14,
-          fontWeight:600, background:'transparent',
-          border:`2px dashed ${C.border}`, color:C.main,
+          width:'100%', padding:'15px', borderRadius:16, fontSize:14,
+          fontWeight:700, background:'rgba(255,255,255,0.65)',
+          border:`2px dashed ${C.main}44`, color:C.main,
           cursor:'pointer', fontFamily:'inherit',
         }}>+ Add Card to Batch</button>
       )}
@@ -440,8 +466,8 @@ function StepCards({ form, setForm, errors }) {
       {/* Batch total */}
       {form.cards.length > 0 && (
         <div style={{
-          background:C.alt, border:`1px solid ${C.border}`,
-          borderRadius:8, padding:'10px 14px',
+          background:C.white, border:'none', boxShadow:SHADOW_CARD,
+          borderRadius:16, padding:'13px 18px',
           display:'flex', justifyContent:'space-between', alignItems:'center',
         }}>
           <span style={{ fontSize:13, color:C.muted }}>
@@ -454,17 +480,21 @@ function StepCards({ form, setForm, errors }) {
   );
 }
 
-// ─── Step 3: Waiver ───────────────────────────────────────────────────────────
-function StepWaiver({ form, setForm, sigData, setSigData, errors }) {
+// ─── Step 3: Agreement (full-screen reading) ──────────────────────────────────
+function StepAgreement({ waiverRead, onReadToEnd, errors }) {
+  const handleScroll = (e) => {
+    const el = e.currentTarget;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 30) onReadToEnd();
+  };
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
       <div>
         <label style={LS}>Service Agreement — Scroll to read in full</label>
-        <div style={{
-          height:220, overflowY:'auto', border:`1.5px solid ${C.border}`,
-          borderRadius:8, padding:'14px 16px', background:C.white,
+        <div onScroll={handleScroll} style={{
+          height:'56dvh', overflowY:'auto', border:`1.5px solid ${C.border}`,
+          borderRadius:16, padding:'16px 18px', background:C.white,
           fontSize:12.5, lineHeight:1.75, color:C.text,
-          WebkitOverflowScrolling:'touch',
+          WebkitOverflowScrolling:'touch', boxShadow:'0 1px 4px rgba(13,60,30,0.04)',
         }}>
           <div style={{ textAlign:'center', marginBottom:16 }}>
             <div style={{ fontWeight:700, fontSize:14, color:C.secondary, fontFamily:"Georgia, serif" }}>
@@ -487,14 +517,41 @@ function StepWaiver({ form, setForm, sigData, setSigData, errors }) {
             </div>
           ))}
           <div style={{
-            marginTop:14, padding:'10px 12px', background:C.alt,
-            borderRadius:6, fontSize:11.5, color:C.muted, lineHeight:1.6,
+            marginTop:14, padding:'12px 14px', background:C.alt,
+            borderRadius:12, fontSize:11.5, color:C.muted, lineHeight:1.6,
           }}>
             By signing below, you confirm you have read this Agreement in full, agree to all terms and conditions, are at least 18 years of age (or have parental authorization), and that the information you have provided about your cards is accurate and complete.
           </div>
         </div>
       </div>
 
+      {waiverRead ? (
+        <div style={{
+          background:C.alt, border:`1.5px solid ${C.main}55`, borderRadius:999,
+          padding:'11px 16px', fontSize:13, fontWeight:700, color:C.main, textAlign:'center',
+        }}>
+          ✓ You've reached the end — continue to sign
+        </div>
+      ) : (
+        <div style={{
+          background:'rgba(255,255,255,0.75)', borderRadius:999,
+          padding:'11px 16px', fontSize:13, fontWeight:600, color:C.muted, textAlign:'center',
+        }}>
+          ↓ Scroll to the end of the agreement to unlock the signature step
+        </div>
+      )}
+      <Err m={errors.waiver} />
+    </div>
+  );
+}
+
+// ─── Step 4: Signature ────────────────────────────────────────────────────────
+function StepSignature({ form, setForm, sigData, setSigData, errors }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      <p style={{ fontSize:14, color:C.muted, margin:0, lineHeight:1.6 }}>
+        You've read the Service Agreement. Sign below to accept it.
+      </p>
       <div>
         <label style={LS}>Client Signature *</label>
         <SignaturePad onDataChange={setSigData} />
@@ -531,13 +588,14 @@ function StepPayment({ form, setForm, errors }) {
             <button key={pt} type="button"
               onClick={() => setForm(p => ({ ...p, paymentType:pt }))}
               style={{
-                padding:'20px 12px', borderRadius:10, cursor:'pointer',
+                padding:'22px 12px', borderRadius:18, cursor:'pointer',
                 fontSize:15, fontFamily:'inherit',
-                fontWeight: active ? 700 : 400,
-                border:`2px solid ${active ? C.main : C.border}`,
+                fontWeight: active ? 700 : 500,
+                border:`2px solid ${active ? C.main : 'transparent'}`,
                 background: active ? C.alt : C.white,
                 color: active ? C.main : C.text,
-                transition:'all 0.12s',
+                boxShadow: active ? SHADOW_CTA : SHADOW_CARD,
+                transition:'all 0.15s',
               }}
             >
               {pt}
@@ -560,7 +618,7 @@ function StepSignOff({ form }) {
       </p>
 
       {/* Client summary */}
-      <div style={{ background:C.alt, border:`1px solid ${C.border}`, borderRadius:10, padding:14 }}>
+      <div style={{ background:C.white, border:'none', boxShadow:SHADOW_CARD, borderRadius:18, padding:18 }}>
         <div style={{ fontSize:10, color:C.muted, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8 }}>Client</div>
         <div style={{ fontSize:15, fontWeight:700, color:C.text }}>{form.clientName}</div>
         <div style={{ fontSize:12, color:C.muted, marginTop:3 }}>
@@ -580,8 +638,8 @@ function StepSignOff({ form }) {
           const svc = SERVICES.find(s => s.id === card.service);
           return (
             <div key={i} style={{
-              background:C.white, border:`1px solid ${C.border}`,
-              borderRadius:8, padding:'10px 12px',
+              background:C.white, border:'none', boxShadow:'0 2px 10px rgba(13,60,30,0.06)',
+              borderRadius:14, padding:'12px 14px',
               display:'flex', justifyContent:'space-between', alignItems:'center',
             }}>
               <div>
@@ -601,8 +659,9 @@ function StepSignOff({ form }) {
 
       {/* Total */}
       <div style={{
-        background:C.white, border:`2px solid ${C.main}`, borderRadius:10,
-        padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center',
+        background:C.white, border:`2px solid ${C.main}`, borderRadius:18,
+        padding:'14px 18px', display:'flex', justifyContent:'space-between', alignItems:'center',
+        boxShadow:SHADOW_CARD,
       }}>
         <div>
           <div style={{ fontSize:10, color:C.muted, textTransform:'uppercase', letterSpacing:'0.07em' }}>Batch Total</div>
@@ -624,8 +683,8 @@ function OrderCard({ order, onAdvance, onRetrySync }) {
 
   return (
     <div style={{
-      background:C.white, border:`1px solid ${C.border}`,
-      borderRadius:12, marginBottom:10, overflow:'hidden',
+      background:C.white, border:'none', boxShadow:SHADOW_CARD,
+      borderRadius:20, marginBottom:14, overflow:'hidden',
     }}>
       {/* Main row */}
       <div
@@ -686,19 +745,19 @@ function OrderCard({ order, onAdvance, onRetrySync }) {
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
             {canAdvance && (
               <button type="button" onClick={() => onAdvance(order.id)} style={{
-                flex:1, fontSize:13, padding:'9px 12px', borderRadius:7,
-                background:C.main, color:'#fff', border:'none',
-                fontWeight:600, cursor:'pointer', fontFamily:'inherit',
-                minWidth:120,
+                flex:1, fontSize:13, padding:'11px 12px', borderRadius:999,
+                background:CTA_GRAD, color:'#fff', border:'none',
+                fontWeight:700, cursor:'pointer', fontFamily:'inherit',
+                minWidth:120, boxShadow:SHADOW_CTA,
               }}>
                 {STATUS_BTN[order.status]}
               </button>
             )}
             {NOTION_SYNC && !order.notionSynced && (
               <button type="button" onClick={() => onRetrySync(order.id)} style={{
-                flex:1, fontSize:13, padding:'9px 12px', borderRadius:7,
-                background:C.bg, color:C.muted,
-                border:`1px solid ${C.border}`,
+                flex:1, fontSize:13, padding:'11px 12px', borderRadius:999,
+                background:C.white, color:C.muted,
+                border:`1.5px solid ${C.border}`, fontWeight:600,
                 cursor:'pointer', fontFamily:'inherit', minWidth:120,
               }}>
                 ↻ Retry Notion Sync
@@ -732,18 +791,62 @@ export default function App() {
   const [sigData,   setSigData]   = useState(null);
   const [errors,    setErrors]    = useState({});
   const [submitting,setSubmitting]= useState(false);
+  const [cardFormOpen, setCardFormOpen] = useState(false); // card entry in progress
+  const [waiverRead,   setWaiverRead]   = useState(false); // scrolled to end of agreement
+
+  // Incomplete entries — anything closed before Approve is kept here, never lost
+  const [drafts, setDrafts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('jm_drafts')) || []; } catch { return []; }
+  });
+  const [activeDraftId, setActiveDraftId] = useState(null);
 
   useEffect(() => {
     localStorage.setItem('jm_orders', JSON.stringify(orders));
   }, [orders]);
+
+  useEffect(() => {
+    localStorage.setItem('jm_drafts', JSON.stringify(drafts));
+  }, [drafts]);
 
   const openModal = () => {
     setForm(emptyForm());
     setSigData(null);
     setErrors({});
     setStep(1);
+    setCardFormOpen(false);
+    setWaiverRead(false);
+    setActiveDraftId(null);
     setShowModal(true);
   };
+
+  // Closing the sheet mid-entry keeps the work as an Incomplete Entry
+  const closeModal = () => {
+    const hasContent =
+      form.clientName.trim() || form.clientEmail.trim() ||
+      form.clientPhone.trim() || form.cards.length > 0;
+    if (hasContent) {
+      const draft = {
+        draftId: activeDraftId || `DRAFT-${Date.now()}`,
+        form, sigData, waiverRead, step,
+        savedAt: new Date().toISOString(),
+      };
+      setDrafts(prev => [draft, ...prev.filter(d => d.draftId !== draft.draftId)]);
+    }
+    setShowModal(false);
+  };
+
+  const resumeDraft = (d) => {
+    setForm(d.form);
+    setSigData(d.sigData || null);
+    setWaiverRead(!!d.waiverRead);
+    setErrors({});
+    setStep(d.step || 1);
+    setCardFormOpen(false);
+    setActiveDraftId(d.draftId);
+    setShowModal(true);
+  };
+
+  const deleteDraft = (id) => setDrafts(prev => prev.filter(d => d.draftId !== id));
 
   const validate = (s) => {
     const e = {};
@@ -755,13 +858,17 @@ export default function App() {
       if (!form.contactMethod)       e.contactMethod = 'Select a contact method';
     }
     if (s === 2) {
-      if (form.cards.length === 0)   e.cards = 'Add at least one card to continue';
+      if (cardFormOpen)              e.cards = 'Finish the card you’re entering — tap "Add Card" to save it, or Cancel — before continuing';
+      else if (form.cards.length === 0) e.cards = 'Add at least one card to continue';
     }
     if (s === 3) {
+      if (!waiverRead)               e.waiver = 'Please scroll to the end of the agreement to continue';
+    }
+    if (s === 4) {
       if (!sigData)                  e.signature = 'Please provide a signature above';
       if (!form.agreed)              e.agreed    = 'You must agree to the terms to continue';
     }
-    if (s === 4) {
+    if (s === 5) {
       if (!form.paymentType)         e.paymentType = 'Please select a payment method';
     }
     return e;
@@ -819,6 +926,11 @@ export default function App() {
     }
 
     setOrders(prev => [newOrder, ...prev]);
+    // Approved — the incomplete entry (if resuming one) is no longer needed
+    if (activeDraftId) {
+      setDrafts(prev => prev.filter(d => d.draftId !== activeDraftId));
+      setActiveDraftId(null);
+    }
     setSubmitting(false);
     setShowModal(false);
   };
@@ -868,56 +980,67 @@ export default function App() {
 
   return (
     <div style={{
-      minHeight:'100vh', background:C.bg,
-      fontFamily:"system-ui,-apple-system,'Segoe UI',sans-serif",
+      minHeight:'100vh', background:GRAD, backgroundAttachment:'fixed',
+      fontFamily:"'Inter',system-ui,-apple-system,'Segoe UI',sans-serif",
       maxWidth:500, margin:'0 auto', position:'relative',
     }}>
 
       {/* ── Header ── */}
       <div style={{
-        background:C.secondary, padding:'14px 18px',
+        background:'linear-gradient(135deg,#1E5C0B 0%,#206100 55%,#0C4A16 100%)',
+        padding:'16px 20px',
         display:'flex', alignItems:'center', justifyContent:'space-between',
         position:'sticky', top:0, zIndex:100,
-        boxShadow:'0 2px 8px rgba(13,38,21,0.18)',
+        boxShadow:'0 4px 18px rgba(13,38,21,0.22)',
+        borderRadius:'0 0 22px 22px',
       }}>
-        <div>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <div style={{
-            fontFamily:"Georgia,'Times New Roman',serif",
-            fontSize:22, fontWeight:700, color:'#ffffff', letterSpacing:'0.02em',
+            width:38, height:38, borderRadius:12, background:'rgba(255,255,255,0.14)',
+            display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0,
           }}>
-            Just Mint
+            <Leaf size={20} color="#B8F0C6" />
           </div>
-          <div style={{ fontSize:9, color:'rgba(255,255,255,0.5)', letterSpacing:'0.18em', textTransform:'uppercase', marginTop:1 }}>
-            Card Care · Mint condition. Every time.
+          <div>
+            <div style={{
+              fontSize:21, fontWeight:800, color:'#ffffff', letterSpacing:'-0.01em',
+            }}>
+              Just Mint
+            </div>
+            <div style={{ fontSize:9, color:'rgba(255,255,255,0.55)', letterSpacing:'0.18em', textTransform:'uppercase', marginTop:1 }}>
+              Card Care · Mint condition. Every time.
+            </div>
           </div>
         </div>
         <button type="button" onClick={openModal} style={{
-          background:C.main, color:'#fff', border:'none',
-          padding:'10px 18px', borderRadius:8, fontSize:13,
-          fontWeight:700, cursor:'pointer', fontFamily:'inherit',
-          letterSpacing:'0.02em',
+          background:'#ffffff', color:C.secondary, border:'none',
+          padding:'11px 18px', borderRadius:999, fontSize:13,
+          fontWeight:800, cursor:'pointer', fontFamily:'inherit',
+          letterSpacing:'0.02em', boxShadow:'0 4px 12px rgba(0,0,0,0.18)',
         }}>
           + New Order
         </button>
       </div>
 
-      {/* ── Tabs ── */}
-      <div style={{ display:'flex', background:C.white, borderBottom:`1px solid ${C.border}`, padding:'0 18px' }}>
+      {/* ── Tabs (pill segmented control) ── */}
+      <div style={{ display:'flex', gap:8, padding:'16px 18px 4px' }}>
         {[['active','Active Orders',activeCount],['completed','Picked Up',completedCount]].map(([id,label,count]) => (
           <button key={id} type="button" onClick={() => setTab(id)} style={{
-            padding:'12px 14px', fontSize:13,
-            fontWeight: tab === id ? 700 : 400,
-            color: tab === id ? C.main : C.muted,
-            background:'transparent', border:'none',
-            borderBottom:`2.5px solid ${tab === id ? C.main : 'transparent'}`,
+            flex:1, padding:'11px 14px', fontSize:13,
+            fontWeight: tab === id ? 800 : 600,
+            color: tab === id ? C.secondary : C.muted,
+            background: tab === id ? C.white : 'rgba(255,255,255,0.45)',
+            border:'none', borderRadius:999,
+            boxShadow: tab === id ? SHADOW_CARD : 'none',
             cursor:'pointer', fontFamily:'inherit',
-            display:'flex', alignItems:'center', gap:7,
+            display:'flex', alignItems:'center', justifyContent:'center', gap:7,
+            transition:'all 0.15s',
           }}>
             {label}
             <span style={{
-              fontSize:11, padding:'1px 8px', borderRadius:10,
+              fontSize:11, padding:'2px 9px', borderRadius:999,
               background: tab === id ? C.alt : 'transparent',
-              color: tab === id ? C.main : C.light,
+              color: tab === id ? C.main : C.light, fontWeight:700,
             }}>
               {count}
             </span>
@@ -926,19 +1049,60 @@ export default function App() {
       </div>
 
       {/* ── Search ── */}
-      <div style={{ padding:'12px 16px', background:C.white, borderBottom:`1px solid ${C.border}` }}>
+      <div style={{ padding:'12px 18px 2px' }}>
         <input
           value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search by client name, card name, or order ID…"
-          style={{ ...IS(), fontSize:14, background:C.bg }}
+          style={{ ...IS(), fontSize:14, borderRadius:999, border:'none', boxShadow:SHADOW_CARD }}
         />
       </div>
 
       {/* ── Order List ── */}
       <div style={{ padding:'14px 16px', paddingBottom:100 }}>
+
+        {/* Incomplete entries — saved work that hasn't been approved yet */}
+        {tab === 'active' && drafts.length > 0 && (
+          <div style={{ marginBottom:18 }}>
+            <div style={{
+              fontSize:10, fontWeight:800, color:'#7a4d00',
+              textTransform:'uppercase', letterSpacing:'0.1em', margin:'2px 4px 8px',
+            }}>
+              Incomplete entries — not yet approved
+            </div>
+            {drafts.map(d => (
+              <div key={d.draftId} style={{
+                background:'#FFF9EC', borderLeft:'4px solid #E5A800',
+                borderRadius:16, boxShadow:SHADOW_CARD, marginBottom:10,
+                padding:'12px 14px', display:'flex', alignItems:'center', gap:10,
+              }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:14, fontWeight:700, color:C.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                    {d.form?.clientName?.trim() || 'Unnamed client'}
+                  </div>
+                  <div style={{ fontSize:11, color:'#7a4d00', marginTop:2 }}>
+                    {(d.form?.cards?.length || 0)} card{(d.form?.cards?.length || 0) !== 1 ? 's' : ''}
+                    {' · stopped at '}{STEP_NAMES[(d.step || 1) - 1]}
+                    {' · '}{new Date(d.savedAt).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}
+                  </div>
+                </div>
+                <button type="button" onClick={() => resumeDraft(d)} style={{
+                  fontSize:12, fontWeight:800, padding:'10px 16px', borderRadius:999,
+                  background:CTA_GRAD, color:'#fff', border:'none', cursor:'pointer',
+                  fontFamily:'inherit', boxShadow:SHADOW_CTA, flexShrink:0,
+                }}>Resume</button>
+                <button type="button" onClick={() => { if (window.confirm('Delete this incomplete entry? The saved card info will be lost.')) deleteDraft(d.draftId); }} style={{
+                  fontSize:16, padding:'7px 12px', borderRadius:999,
+                  background:'transparent', color:C.danger, border:`1px solid ${C.border}`,
+                  cursor:'pointer', flexShrink:0, lineHeight:1,
+                }}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {filtered.length === 0 ? (
           <div style={{ textAlign:'center', padding:'60px 20px', color:C.light }}>
-            <div style={{ fontSize:44, marginBottom:14, lineHeight:1 }}>🃏</div>
+            <div style={{ marginBottom:14, lineHeight:1, opacity:0.55 }}><Leaf size={48} color={C.light} /></div>
             <div style={{ fontSize:14, lineHeight:1.7 }}>
               {search
                 ? 'No orders match your search.'
@@ -956,9 +1120,10 @@ export default function App() {
 
       {/* ── Footer Stats ── */}
       <div style={{
-        position:'sticky', bottom:0,
-        background:C.white, borderTop:`1px solid ${C.border}`,
-        padding:'10px 20px', display:'flex', gap:24, zIndex:90,
+        position:'sticky', bottom:12, margin:'0 18px',
+        background:'rgba(255,255,255,0.92)', backdropFilter:'blur(8px)',
+        borderRadius:20, boxShadow:'0 8px 28px rgba(13,60,30,0.14)',
+        padding:'12px 22px', display:'flex', gap:28, zIndex:90,
       }}>
         <div>
           <div style={{ fontSize:9, color:C.light, textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:2 }}>In Progress</div>
@@ -983,11 +1148,11 @@ export default function App() {
             zIndex:200, display:'flex',
             alignItems:'flex-end', justifyContent:'center',
           }}
-          onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}
+          onClick={e => { if (e.target === e.currentTarget) closeModal(); }}
         >
           <div style={{
-            background:C.bg, width:'100%', maxWidth:500,
-            maxHeight:'93dvh', borderRadius:'18px 18px 0 0',
+            background:GRAD, width:'100%', maxWidth:500,
+            maxHeight:'93dvh', borderRadius:'26px 26px 0 0',
             display:'flex', flexDirection:'column', overflow:'hidden',
           }}>
             {/* Modal header */}
@@ -1000,13 +1165,13 @@ export default function App() {
               <div>
                 <div style={{ fontSize:16, fontWeight:700, color:C.secondary }}>New Order</div>
                 <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>
-                  Step {step} of 5 — {STEP_NAMES[step-1]}
+                  Step {step} of {STEP_NAMES.length} — {STEP_NAMES[step-1]}
                 </div>
               </div>
-              <button type="button" onClick={() => setShowModal(false)} style={{
+              <button type="button" onClick={closeModal} style={{
                 background:'transparent', border:'none',
                 fontSize:22, color:C.muted, cursor:'pointer',
-                padding:'4px 8px', lineHeight:1, borderRadius:6,
+                padding:'4px 8px', lineHeight:1, borderRadius:999,
               }}>✕</button>
             </div>
 
@@ -1018,8 +1183,8 @@ export default function App() {
             }}>
               {STEP_NAMES.map((_, i) => (
                 <div key={i} style={{
-                  flex:1, height:4, borderRadius:2,
-                  background: i < step ? C.main : C.border,
+                  flex:1, height:6, borderRadius:999,
+                  background: i < step ? CTA_GRAD : C.border,
                   transition:'background 0.2s',
                 }} />
               ))}
@@ -1031,10 +1196,11 @@ export default function App() {
               WebkitOverflowScrolling:'touch',
             }}>
               {step === 1 && <StepClientInfo form={form} setForm={setForm} errors={errors} />}
-              {step === 2 && <StepCards      form={form} setForm={setForm} errors={errors} />}
-              {step === 3 && <StepWaiver     form={form} setForm={setForm} sigData={sigData} setSigData={setSigData} errors={errors} />}
-              {step === 4 && <StepPayment    form={form} setForm={setForm} errors={errors} />}
-              {step === 5 && <StepSignOff    form={form} />}
+              {step === 2 && <StepCards      form={form} setForm={setForm} errors={errors} onFormOpenChange={setCardFormOpen} />}
+              {step === 3 && <StepAgreement  waiverRead={waiverRead} onReadToEnd={() => setWaiverRead(true)} errors={errors} />}
+              {step === 4 && <StepSignature  form={form} setForm={setForm} sigData={sigData} setSigData={setSigData} errors={errors} />}
+              {step === 5 && <StepPayment    form={form} setForm={setForm} errors={errors} />}
+              {step === 6 && <StepSignOff    form={form} />}
             </div>
 
             {/* Modal footer */}
@@ -1045,23 +1211,32 @@ export default function App() {
             }}>
               {step > 1 && (
                 <button type="button" onClick={back} style={{
-                  flex:1, padding:'13px', borderRadius:8, fontSize:14,
-                  background:C.bg, border:`1.5px solid ${C.border}`,
-                  color:C.text, cursor:'pointer', fontFamily:'inherit', fontWeight:500,
+                  flex:1, padding:'15px', borderRadius:999, fontSize:14,
+                  background:C.white, border:`1.5px solid ${C.border}`,
+                  color:C.text, cursor:'pointer', fontFamily:'inherit', fontWeight:600,
                 }}>Back</button>
               )}
-              {step < 5 ? (
-                <button type="button" onClick={next} style={{
-                  flex:2, padding:'13px', borderRadius:8, fontSize:15,
-                  fontWeight:700, background:C.main, border:'none',
-                  color:'#fff', cursor:'pointer', fontFamily:'inherit',
-                }}>Continue</button>
+              {step < 6 ? (
+                <button type="button" onClick={next} disabled={step === 3 && !waiverRead} style={{
+                  flex:2, padding:'15px', borderRadius:999, fontSize:15,
+                  fontWeight:800,
+                  background: (step === 3 && !waiverRead) ? C.light : CTA_GRAD,
+                  border:'none',
+                  color:'#fff',
+                  cursor: (step === 3 && !waiverRead) ? 'not-allowed' : 'pointer',
+                  fontFamily:'inherit',
+                  boxShadow: (step === 3 && !waiverRead) ? 'none' : SHADOW_CTA,
+                  letterSpacing:'0.01em',
+                }}>
+                  {step === 3 ? (waiverRead ? 'Continue to Signature' : 'Scroll to the end ↓') : 'Continue'}
+                </button>
               ) : (
                 <button type="button" onClick={submit} disabled={submitting} style={{
-                  flex:2, padding:'13px', borderRadius:8, fontSize:15,
-                  fontWeight:700, background: submitting ? C.light : C.secondary,
+                  flex:2, padding:'15px', borderRadius:999, fontSize:15,
+                  fontWeight:800, background: submitting ? C.light : CTA_GRAD,
                   border:'none', color:'#fff', cursor: submitting ? 'not-allowed' : 'pointer',
                   fontFamily:'inherit', letterSpacing:'0.02em',
+                  boxShadow: submitting ? 'none' : SHADOW_CTA,
                 }}>
                   {submitting ? 'Saving…' : 'Approve & Begin Service'}
                 </button>
