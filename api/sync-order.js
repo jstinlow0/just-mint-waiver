@@ -74,11 +74,9 @@ export default async function handler(req, res) {
     const lastName = order.clientName.trim().split(/\s+/).slice(-1)[0];
     const monthYr  = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
 
-    const cardList = order.cards.map((c, i) => {
-      const num  = c.cardNumber ? ` #${c.cardNumber}` : "";
-      const year = c.year ? ` (${c.year})` : "";
-      return `${i + 1}. ${c.cardName}${year}${num} — ${c.condition} — ${c.service} ($${SERVICE_PRICES[c.service] ?? "?"})`;
-    }).join("\n").slice(0, 1900);
+    const cardList = order.cards.map((c, i) =>
+      `${i + 1}. ${c.cardName} — ${c.condition} — ${c.service} ($${SERVICE_PRICES[c.service] ?? "?"})`
+    ).join("\n").slice(0, 1900);
 
     const batchPage = await notion.pages.create({
       parent: { database_id: BATCHES_DB },
@@ -104,10 +102,6 @@ export default async function handler(req, res) {
     const cardIds = [];
     for (const c of order.cards) {
       try {
-        const noteBits = [];
-        if (c.year)       noteBits.push(`Year: ${c.year}`);
-        if (c.cardNumber) noteBits.push(`Card #: ${c.cardNumber}`);
-
         const cardPage = await notion.pages.create({
           parent: { database_id: CARDS_DB },
           properties: {
@@ -117,11 +111,9 @@ export default async function handler(req, res) {
             "Status":    { select: { name: "Intake" } },
             ...(c.service   && { "Service":            { select: { name: c.service   } } }),
             ...(c.condition && { "Condition (Before)": { select: { name: c.condition } } }),
-            ...(noteBits.length && {
-              "Notes": { rich_text: [{ text: { content: noteBits.join(" · ").slice(0, 1900) } }] },
-            }),
           },
         });
+
         cardIds.push(cardPage.id);
       } catch (cardErr) {
         console.error(`Card sync failed (${c.cardName}):`, cardErr.message);

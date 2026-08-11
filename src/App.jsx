@@ -105,7 +105,7 @@ const emptyForm = () => ({
 });
 
 const emptyCard = () => ({
-  cardName:'', year:'', cardNumber:'', condition:'', service:''
+  cardName:'', condition:'', service:''
 });
 
 const genId = (list) => {
@@ -308,11 +308,9 @@ function StepCards({ form, setForm, errors, onFormOpenChange }) {
 
   const df = (k) => (e) => setDraft(p => ({ ...p, [k]:e.target.value }));
 
-  const validateDraft = () => {
+const validateDraft = () => {
     const e = {};
-    if (!draft.cardName.trim())  e.cardName  = 'Card name is required';
-    if (!draft.year.trim())      e.year      = 'Year is required';
-    else if (!/^\d{4}$/.test(draft.year.trim())) e.year = 'Enter a valid 4-digit year';
+    if (!draft.cardName.trim())  e.cardName  = 'Card is required';
     if (!draft.condition)        e.condition = 'Select a condition';
     if (!draft.service)          e.service   = 'Select a service';
     return e;
@@ -360,11 +358,10 @@ function StepCards({ form, setForm, errors, onFormOpenChange }) {
           }}>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:14, fontWeight:700, color:C.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                {card.cardName} ({card.year})
+                {card.cardName}
               </div>
               <div style={{ fontSize:12, color:C.muted, marginTop:3 }}>
                 {card.condition} · {svc?.label} · ${svc?.price}
-                {card.cardNumber ? ` · #${card.cardNumber}` : ''}
               </div>
             </div>
             <button type="button" onClick={() => removeCard(i)} style={{
@@ -387,20 +384,9 @@ function StepCards({ form, setForm, errors, onFormOpenChange }) {
             {form.cards.length > 0 ? `Card ${form.cards.length + 1}` : 'Card Details'}
           </div>
           <div>
-            <label style={LS}>Card Name *</label>
-            <input style={IS(draftErr.cardName)} value={draft.cardName} onChange={df('cardName')} placeholder="e.g. Charizard Holo" autoComplete="off" />
+            <label style={LS}>Card *</label>
+            <input style={IS(draftErr.cardName)} value={draft.cardName} onChange={df('cardName')} placeholder="e.g. Delta Species Charizard" autoComplete="off" />
             <Err m={draftErr.cardName} />
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-            <div>
-              <label style={LS}>Year *</label>
-              <input style={IS(draftErr.year)} value={draft.year} onChange={df('year')} placeholder="1999" maxLength={4} inputMode="numeric" />
-              <Err m={draftErr.year} />
-            </div>
-            <div>
-              <label style={LS}>Card #</label>
-              <input style={IS()} value={draft.cardNumber} onChange={df('cardNumber')} placeholder="4/102" />
-            </div>
           </div>
           <div>
             <label style={LS}>Condition *</label>
@@ -634,9 +620,8 @@ function StepSignOff({ form }) {
               display:'flex', justifyContent:'space-between', alignItems:'center',
             }}>
               <div>
-                <div style={{ fontSize:13, fontWeight:600, color:C.text }}>
-                  {card.cardName} ({card.year})
-                  {card.cardNumber ? ` #${card.cardNumber}` : ''}
+                 <div style={{ fontSize:13, fontWeight:600, color:C.text }}>
+                  {card.cardName}
                 </div>
                 <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>
                   {card.condition} · {svc?.label}
