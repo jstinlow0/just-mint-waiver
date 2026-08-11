@@ -275,9 +275,9 @@ function StepClientInfo({ form, setForm, errors }) {
         <input style={IS(errors.clientName)} value={form.clientName} onChange={f('clientName')} placeholder="Full legal name" autoComplete="off" />
         <Err m={errors.clientName} />
       </div>
-      <div>
-        <label style={LS}>Email *</label>
-        <input type="email" inputMode="email" style={IS(errors.clientEmail)} value={form.clientEmail} onChange={f('clientEmail')} placeholder="client@email.com" autoCapitalize="none" />
+     <div>
+        <label style={LS}>Email</label>
+        <input type="email" inputMode="email" style={IS(errors.clientEmail)} value={form.clientEmail} onChange={f('clientEmail')} placeholder="client@email.com (optional)" autoCapitalize="none" />
         <Err m={errors.clientEmail} />
       </div>
       <div>
@@ -880,8 +880,8 @@ export default function App() {
     const e = {};
     if (s === 1) {
       if (!form.clientName.trim())   e.clientName  = 'Client name is required';
-      if (!form.clientEmail.trim())  e.clientEmail = 'Email is required';
-      else if (!/\S+@\S+\.\S+/.test(form.clientEmail)) e.clientEmail = 'Enter a valid email address';
+      if (form.clientEmail.trim() && !/\S+@\S+\.\S+/.test(form.clientEmail))
+        e.clientEmail = 'Enter a valid email address';
       if (!form.clientPhone.trim())  e.clientPhone = 'Phone number is required';
       if (!form.contactMethod)       e.contactMethod = 'Select a contact method';
     }

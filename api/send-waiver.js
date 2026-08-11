@@ -10,8 +10,8 @@ const NOTION_VERSION = '2025-09-03' // for raw file-upload calls
 const SERVICES = [
   { name: 'Clean + Polish',                price: '$8',  note: 'Surface clean, holo polish' },
   { name: 'Edge & Corner Lift Correction', price: '$30', note: 'includes Clean + Polish' },
-  { name: 'Dent Correction',               price: '$50', note: 'includes Clean + Polish' },
-  { name: 'Crease Correction',             price: '$70', note: 'includes Clean + Polish' },
+  { name: 'Dent Correction',               price: '$40', note: 'includes Clean + Polish' },
+  { name: 'Crease Correction',             price: '$50', note: 'includes Clean + Polish' },
 ]
 
 const SECTIONS = [
