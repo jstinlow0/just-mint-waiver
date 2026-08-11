@@ -9,6 +9,7 @@ import { Client } from "@notionhq/client";
 // New databases under "Card Restoration HQ"
 const CLIENTS_DB = "1292d2fb-cf2d-4e0c-b2d3-7d5ed07335e8";
 const BATCHES_DB = "378f4ca1-a2ac-4403-8456-7be887514e68";
+const CARDS_DB   = "f38bd223-1bef-47f1-b23e-1521ef70ddc4";
 
 const SERVICE_PRICES = {
   "Clean + Polish": 8,
@@ -98,6 +99,35 @@ export default async function handler(req, res) {
     const uid = batchPage.properties?.["Order #"]?.unique_id;
     const orderNumber = uid ? `${uid.prefix}-${uid.number}` : null;
 
+// ── Step 4: Create one Cards row per card ─────────────────────────────────
+    // Failures here must not fail the order — the batch is already saved.
+    const cardIds = [];
+    for (const c of order.cards) {
+      try {
+        const noteBits = [];
+        if (c.year)       noteBits.push(`Year: ${c.year}`);
+        if (c.cardNumber) noteBits.push(`Card #: ${c.cardNumber}`);
+
+        const cardPage = await notion.pages.create({
+          parent: { database_id: CARDS_DB },
+          properties: {
+            "Card Name": { title: [{ text: { content: c.cardName || "Untitled card" } }] },
+            "Client":    { relation: [{ id: clientPage.id }] },
+            "Order":     { relation: [{ id: batchPage.id }] },
+            "Status":    { select: { name: "Intake" } },
+            ...(c.service   && { "Service":            { select: { name: c.service   } } }),
+            ...(c.condition && { "Condition (Before)": { select: { name: c.condition } } }),
+            ...(noteBits.length && {
+              "Notes": { rich_text: [{ text: { content: noteBits.join(" · ").slice(0, 1900) } }] },
+            }),
+          },
+        });
+        cardIds.push(cardPage.id);
+      } catch (cardErr) {
+        console.error(`Card sync failed (${c.cardName}):`, cardErr.message);
+      }
+    }
+
     console.log(`✓ Synced ${orderNumber || order.id} — ${order.cards.length} card(s) for ${order.clientName}`);
 
     // orderUrls kept for compatibility: update-status.js extracts page IDs from it.
@@ -107,7 +137,7 @@ export default async function handler(req, res) {
       clientUrl:   clientPage.url,
       orderUrls:   [batchPage.url],
       orderNumber,
-      cardIds:     [],
+      cardIds,
     });
 
   } catch (err) {
