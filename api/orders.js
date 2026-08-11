@@ -7,6 +7,7 @@ import { Client } from "@notionhq/client";
 const BATCHES_DB = "378f4ca1-a2ac-4403-8456-7be887514e68";
 
 // Notion status → app status
+// Notion status → app status
 const STATUS_MAP = {
   "Received":       "pending",
   "On Hold":        "pending",
@@ -14,7 +15,7 @@ const STATUS_MAP = {
   "In Restoration": "in_progress",
   "Quality Check":  "in_progress",
   "Ready":          "complete",
-  "Complete":       "complete",
+  "Complete":       "picked_up",
   "Shipped":        "picked_up",
 };
 
