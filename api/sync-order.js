@@ -13,8 +13,8 @@ const BATCHES_DB = "378f4ca1-a2ac-4403-8456-7be887514e68";
 const SERVICE_PRICES = {
   "Clean + Polish": 8,
   "Lift":           30,
-  "Dent":           50,
-  "Crease":         70,
+  "Dent":           40,
+  "Crease":         50,
 };
 
 export default async function handler(req, res) {
