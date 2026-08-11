@@ -65,8 +65,8 @@ export default async function handler(req, res) {
   const { clientName, clientEmail, notes, signedAt, sigDataUrl } = req.body || {}
 
   if (!clientName || !signedAt) {
-    return res.status(400).json({ error: 'Missing clientName or signedAt' })
-  }
+  return res.status(400).json({ error: 'Missing clientName or signedAt' })
+}
 
   try {
     const pdfBytes = await buildPDF({ clientName, clientEmail, notes, signedAt, sigDataUrl })

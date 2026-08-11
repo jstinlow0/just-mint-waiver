@@ -46,8 +46,8 @@ function Leaf({ size = 16, color = C.main }) {
 const SERVICES = [
   { id:'Clean + Polish', label:'Clean + Polish',       price:8  },
   { id:'Lift',           label:'Lift — Edge & Corner', price:30, includesClean:true },
-  { id:'Dent',           label:'Dent Correction',      price:50, includesClean:true },
-  { id:'Crease',         label:'Crease Correction',    price:70, includesClean:true },
+  { id:'Dent',           label:'Dent Correction',      price:40, includesClean:true },
+  { id:'Crease',         label:'Crease Correction',    price:50, includesClean:true },
 ];
 
 // Condition IDs match Notion "Condition (Before)" select options exactly
@@ -943,7 +943,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientName:  newOrder.clientName,
-          clientEmail: newOrder.clientEmail,
+          email:       newOrder.clientEmail,
           notes:       null,
           signedAt:    newOrder.waiverSignedAt,
           sigDataUrl:  newOrder.signatureDataUrl,
